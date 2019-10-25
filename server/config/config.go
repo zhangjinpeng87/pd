@@ -571,6 +571,7 @@ func (c *ScheduleConfig) Clone() *ScheduleConfig {
 		SplitMergeInterval:           c.SplitMergeInterval,
 		PatrolRegionInterval:         c.PatrolRegionInterval,
 		MaxStoreDownTime:             c.MaxStoreDownTime,
+		MaxColdDataTime:              c.MaxColdDataTime,
 		LeaderScheduleLimit:          c.LeaderScheduleLimit,
 		LeaderScheduleStrategy:       c.LeaderScheduleStrategy,
 		RegionScheduleLimit:          c.RegionScheduleLimit,
@@ -604,6 +605,7 @@ const (
 	defaultSplitMergeInterval     = 1 * time.Hour
 	defaultPatrolRegionInterval   = 100 * time.Millisecond
 	defaultMaxStoreDownTime       = 30 * time.Minute
+	defaultMaxColdDataTime        = 30 * 24 * time.Hour
 	defaultLeaderScheduleLimit    = 4
 	defaultRegionScheduleLimit    = 2048
 	defaultReplicaScheduleLimit   = 64
@@ -636,6 +638,7 @@ func (c *ScheduleConfig) adjust(meta *configMetaData) error {
 	adjustDuration(&c.SplitMergeInterval, defaultSplitMergeInterval)
 	adjustDuration(&c.PatrolRegionInterval, defaultPatrolRegionInterval)
 	adjustDuration(&c.MaxStoreDownTime, defaultMaxStoreDownTime)
+	adjustDuration(&c.MaxColdDataTime, defaultMaxColdDataTime)
 	if !meta.IsDefined("leader-schedule-limit") {
 		adjustUint64(&c.LeaderScheduleLimit, defaultLeaderScheduleLimit)
 	}

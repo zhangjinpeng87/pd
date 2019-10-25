@@ -125,7 +125,7 @@ func (r *RegionStatistics) Observe(region *core.RegionInfo, stores []*core.Store
 	lastAccessTime := region.GetMeta().GetLastAccessTime()
 	now := time.Now()
 	for _, store := range stores {
-		if lastAccessTime < uint64(now.Unix())-uint64(r.opt.GetMaxColdDataTime().Seconds()) {
+		if lastAccessTime > 0 && lastAccessTime < uint64(now.Unix())-uint64(r.opt.GetMaxColdDataTime().Seconds()) {
 			if store.GetMeta().GetStoreType() == metapb.StoreType_Performance {
 				r.stats[WarmToCold][regionID] = region
 				if _, ok := r.stats[ColdToWarm][regionID]; ok {

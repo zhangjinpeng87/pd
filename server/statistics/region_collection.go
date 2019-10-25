@@ -14,8 +14,10 @@
 package statistics
 
 import (
+	"github.com/pingcap/kvproto/pkg/metapb"
 	"github.com/pingcap/pd/server/core"
 	"github.com/pingcap/pd/server/namespace"
+	"time"
 )
 
 // RegionStatisticType represents the type of the region's status.
@@ -31,6 +33,8 @@ const (
 	IncorrectNamespace
 	LearnerPeer
 	EmptyRegion
+	ColdToWarm
+	WarmToCold
 )
 
 const nonIsolation = "none"
@@ -59,6 +63,8 @@ func NewRegionStatistics(opt ScheduleOptions, classifier namespace.Classifier) *
 	r.stats[IncorrectNamespace] = make(map[uint64]*core.RegionInfo)
 	r.stats[LearnerPeer] = make(map[uint64]*core.RegionInfo)
 	r.stats[EmptyRegion] = make(map[uint64]*core.RegionInfo)
+	r.stats[ColdToWarm] = make(map[uint64]*core.RegionInfo)
+	r.stats[WarmToCold] = make(map[uint64]*core.RegionInfo)
 	return r
 }
 
@@ -116,6 +122,28 @@ func (r *RegionStatistics) Observe(region *core.RegionInfo, stores []*core.Store
 		peerTypeIndex |= EmptyRegion
 	}
 
+	lastAccessTime := region.GetMeta().GetLastAccessTime()
+	now := time.Now()
+	for _, store := range stores {
+		if lastAccessTime > 0 && lastAccessTime < uint64(now.Unix())-uint64(r.opt.GetMaxColdDataTime().Seconds()) {
+			if store.GetMeta().GetStoreType() == metapb.StoreType_Performance {
+				r.stats[WarmToCold][regionID] = region
+				if _, ok := r.stats[ColdToWarm][regionID]; ok {
+					delete(r.stats[ColdToWarm], regionID)
+				}
+				break
+			}
+		} else {
+			if store.GetMeta().GetStoreType() == metapb.StoreType_Storage {
+				r.stats[ColdToWarm][regionID] = region
+				if _, ok := r.stats[WarmToCold][regionID]; ok {
+					delete(r.stats[WarmToCold], regionID)
+				}
+				break
+			}
+		}
+	}
+
 	for _, store := range stores {
 		if store.IsOffline() {
 			peer := region.GetStorePeer(store.GetID())
@@ -138,6 +166,34 @@ func (r *RegionStatistics) Observe(region *core.RegionInfo, stores []*core.Store
 	}
 	r.deleteEntry(deleteIndex, regionID)
 	r.index[regionID] = peerTypeIndex
+}
+
+// DrainStatistics drains specified type of statistics
+func (r *RegionStatistics) DrainStatistics(statsType RegionStatisticType, limit uint64) []*core.RegionInfo {
+	var cap uint64 = 32
+	if limit > 0 {
+		cap = limit
+	}
+	regions := make([]*core.RegionInfo, cap)
+	toBeDeleted := make([]uint64, cap)
+	var count uint64 = 0
+	for regionID, region := range r.stats[statsType] {
+		if limit > 0 && count >= limit {
+			break
+		}
+		count += 1
+		toBeDeleted = append(toBeDeleted, regionID)
+		regions = append(regions, region)
+	}
+	for _, regionID := range toBeDeleted {
+		delete(r.stats[statsType], regionID)
+	}
+
+	if len(regions) > 0 {
+		return regions
+	} else {
+		return nil
+	}
 }
 
 // ClearDefunctRegion is used to handle the overlap region.

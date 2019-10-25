@@ -494,6 +494,8 @@ type ScheduleConfig struct {
 	// MaxStoreDownTime is the max duration after which
 	// a store will be considered to be down if it hasn't reported heartbeats.
 	MaxStoreDownTime typeutil.Duration `toml:"max-store-down-time,omitempty" json:"max-store-down-time"`
+	// MaxColdDataTime is
+	MaxColdDataTime typeutil.Duration `toml:"max-cold-data-time,omitempty" json:"max-cold-data-time"`
 	// LeaderScheduleLimit is the max coexist leader schedules.
 	LeaderScheduleLimit uint64 `toml:"leader-schedule-limit,omitempty" json:"leader-schedule-limit"`
 	// LeaderScheduleStrategy is the option to balance leader, there are some strategics supported: ["count", "size"], default: "count"
@@ -715,6 +717,7 @@ var defaultSchedulers = SchedulerConfigs{
 	{Type: "balance-leader"},
 	{Type: "hot-region"},
 	{Type: "label"},
+	{Type: "separate-cold-hot"},
 }
 
 // IsDefaultScheduler checks whether the scheduler is enable by default.

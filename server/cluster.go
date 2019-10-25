@@ -1291,6 +1291,11 @@ func (c *RaftCluster) GetMaxStoreDownTime() time.Duration {
 	return c.opt.GetMaxStoreDownTime()
 }
 
+// GetMaxColdDataTime returns
+func (c *RaftCluster) GetMaxColdDataTime() time.Duration {
+	return c.opt.GetMaxColdDataTime()
+}
+
 // GetMaxReplicas returns the number of replicas.
 func (c *RaftCluster) GetMaxReplicas() int {
 	return c.opt.GetMaxReplicas(namespace.DefaultNamespace)
@@ -1402,6 +1407,16 @@ func (c *RaftCluster) CheckWriteStatus(region *core.RegionInfo) []*statistics.Ho
 // CheckReadStatus checks the read status, returns whether need update statistics and item.
 func (c *RaftCluster) CheckReadStatus(region *core.RegionInfo) []*statistics.HotPeerStat {
 	return c.hotSpotCache.CheckRead(region, c.storesStats)
+}
+
+// ColdToWarmStats return regions recognized as warm regions(was cold)
+func (c *RaftCluster) ColdToWarmStats(limit uint64) []*core.RegionInfo {
+	return c.regionStats.DrainStatistics(statistics.ColdToWarm, limit)
+}
+
+// WarmToColdStats return regions recognized as cold regions
+func (c *RaftCluster) WarmToColdStats(limit uint64) []*core.RegionInfo {
+	return c.regionStats.DrainStatistics(statistics.WarmToCold, limit)
 }
 
 func (c *RaftCluster) putRegion(region *core.RegionInfo) error {

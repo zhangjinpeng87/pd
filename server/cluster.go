@@ -1411,11 +1411,15 @@ func (c *RaftCluster) CheckReadStatus(region *core.RegionInfo) []*statistics.Hot
 
 // ColdToWarmStats return regions recognized as warm regions(was cold)
 func (c *RaftCluster) ColdToWarmStats(limit uint64) []*core.RegionInfo {
+	c.Lock()
+	defer c.Unlock()
 	return c.regionStats.DrainStatistics(statistics.ColdToWarm, limit)
 }
 
 // WarmToColdStats return regions recognized as cold regions
 func (c *RaftCluster) WarmToColdStats(limit uint64) []*core.RegionInfo {
+	c.Lock()
+	defer c.Unlock()
 	return c.regionStats.DrainStatistics(statistics.WarmToCold, limit)
 }
 

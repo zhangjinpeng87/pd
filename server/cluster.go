@@ -105,11 +105,11 @@ func newRaftCluster(s *Server, clusterID uint64) *RaftCluster {
 	coldWarmStats[ColdToWarm] = make(map[uint64]*core.RegionInfo)
 	coldWarmStats[WarmToCold] = make(map[uint64]*core.RegionInfo)
 	return &RaftCluster{
-		s:            s,
-		running:      false,
-		clusterID:    clusterID,
-		clusterRoot:  s.getClusterRootPath(),
-		regionSyncer: syncer.NewRegionSyncer(s),
+		s:             s,
+		running:       false,
+		clusterID:     clusterID,
+		clusterRoot:   s.getClusterRootPath(),
+		regionSyncer:  syncer.NewRegionSyncer(s),
 		coldWarmStats: coldWarmStats,
 	}
 }
@@ -445,7 +445,7 @@ func (c *RaftCluster) processRegionHeartbeat(region *core.RegionInfo) error {
 				}
 			}
 		} else {
-			if uint64(now.Unix()) - region.GetMeta().LastAccessTime > uint64(c.opt.GetMaxColdDataTime().Seconds()) {
+			if uint64(now.Unix())-region.GetMeta().LastAccessTime > uint64(c.opt.GetMaxColdDataTime().Seconds()) {
 				for _, store := range regionStores {
 					// some replica in performance stores, should transfer to storage stores
 					if store.GetMeta().StoreType == metapb.StoreType_Performance {
@@ -535,8 +535,8 @@ func (c *RaftCluster) drainColdWarmStats(direction ColdWarmDirection, limit uint
 	if limit > 0 {
 		cap = limit
 	}
-	regions := make([]*core.RegionInfo, cap)
-	toBeDeleted := make([]uint64, cap)
+	regions := make([]*core.RegionInfo, 0, cap)
+	toBeDeleted := make([]uint64, 0, cap)
 	var count uint64 = 0
 	for regionID, region := range c.coldWarmStats[direction] {
 		if limit > 0 && count >= limit {

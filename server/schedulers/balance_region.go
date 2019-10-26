@@ -121,12 +121,9 @@ func (s *balanceRegionScheduler) IsScheduleAllowed(cluster opt.Cluster) bool {
 func (s *balanceRegionScheduler) Schedule(cluster opt.Cluster) []*operator.Operator {
 	schedulerCounter.WithLabelValues(s.GetName(), "schedule").Inc()
 	stores := cluster.GetStores()
-	storageStores := make([]*core.StoreInfo, len(stores))
-	performanceStores := make([]*core.StoreInfo, len(stores))
+	storageStores := make([]*core.StoreInfo, 0, len(stores))
+	performanceStores := make([]*core.StoreInfo, 0, len(stores))
 	for _, store := range stores {
-		if store == nil {
-			panic("unexpected nil store")
-		}
 		storeType := store.GetMeta().GetStoreType()
 		if storeType == metapb.StoreType_Storage {
 			storageStores = append(storageStores, store)

@@ -441,6 +441,7 @@ func (c *RaftCluster) processRegionHeartbeat(region *core.RegionInfo) error {
 				// some replica in storage stores, should transfer to performance stores
 				if store.GetMeta().StoreType == metapb.StoreType_Storage {
 					c.coldWarmStats[ColdToWarm][region.GetID()] = region
+					coldWarmEventCounter.WithLabelValues("cold-to-warm").Inc()
 					break
 				}
 			}
@@ -450,6 +451,7 @@ func (c *RaftCluster) processRegionHeartbeat(region *core.RegionInfo) error {
 					// some replica in performance stores, should transfer to storage stores
 					if store.GetMeta().StoreType == metapb.StoreType_Performance {
 						c.coldWarmStats[WarmToCold][region.GetID()] = region
+						coldWarmEventCounter.WithLabelValues("warm-to-cold").Inc()
 						break
 					}
 				}

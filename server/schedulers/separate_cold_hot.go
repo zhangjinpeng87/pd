@@ -42,7 +42,7 @@ func init() {
 
 const (
 	separateColdHotName = "separate-cold-hot-scheduler"
-	batchSzie           = 4
+	batchSzie           = 1
 )
 
 type separateColdHotScheduler struct {
@@ -138,33 +138,33 @@ func (s *separateColdHotScheduler) Schedule(cluster opt.Cluster) []*operator.Ope
 }
 
 func (s *separateColdHotScheduler) migrateColdToWarm(cluster opt.Cluster, candidateRegions []*core.RegionInfo, storageStores map[uint64]struct{}) []*operator.Operator {
-	ops := make([]*operator.Operator, 0)
 	for _, region := range candidateRegions {
 		for _, peer := range region.GetPeers() {
 			if _, ok := storageStores[peer.StoreId]; ok {
 				if op := s.transferPeer(cluster, region, peer, storageStores); op != nil {
 					schedulerCounter.WithLabelValues(s.GetName(), "new-operator").Inc()
-					ops = append(ops, op)
+					// TODO: currently pd only support schedule one operator
+					return []*operator.Operator{op}
 				}
 			}
 		}
 	}
-	return ops
+	return nil
 }
 
 func (s *separateColdHotScheduler) migrateWarmToCold(cluster opt.Cluster, candidateRegions []*core.RegionInfo, performanceStores map[uint64]struct{}) []*operator.Operator {
-	ops := make([]*operator.Operator, 0)
 	for _, region := range candidateRegions {
 		for _, peer := range region.GetPeers() {
 			if _, ok := performanceStores[peer.StoreId]; ok {
 				if op := s.transferPeer(cluster, region, peer, performanceStores); op != nil {
 					schedulerCounter.WithLabelValues(s.GetName(), "new-operator").Inc()
-					ops = append(ops, op)
+					// TODO: currently pd only support schedule one operator
+					return []*operator.Operator{op}
 				}
 			}
 		}
 	}
-	return ops
+	return nil
 }
 
 // transferPeer selects the best store to create a new peer to replace the old peer.

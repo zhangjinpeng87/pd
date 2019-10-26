@@ -124,6 +124,9 @@ func (s *balanceRegionScheduler) Schedule(cluster opt.Cluster) []*operator.Opera
 	storageStores := make([]*core.StoreInfo, len(stores))
 	performanceStores := make([]*core.StoreInfo, len(stores))
 	for _, store := range stores {
+		if store == nil {
+			panic("unexpected nil store")
+		}
 		storeType := store.GetMeta().GetStoreType()
 		if storeType == metapb.StoreType_Storage {
 			storageStores = append(storageStores, store)
@@ -135,13 +138,19 @@ func (s *balanceRegionScheduler) Schedule(cluster opt.Cluster) []*operator.Opera
 	}
 
 	// First: balance regions in performance TiKVs
-	if ops := s.scheduleImpl(cluster, storageStores, performanceStores); ops != nil {
-		return ops
+	if len(performanceStores) > 0 {
+		if ops := s.scheduleImpl(cluster, performanceStores, storageStores); ops != nil {
+			return ops
+		}
 	}
 
 	// Second: balance regions in storage TiKVs
 	// Todo: lazy balance in storage TiKVs
-	return s.scheduleImpl(cluster, performanceStores, storageStores)
+	if len(storageStores) > 0 {
+		return s.scheduleImpl(cluster, storageStores, performanceStores)
+	}
+
+	return nil
 }
 
 func (s *balanceRegionScheduler) scheduleImpl(cluster opt.Cluster, includeStores, excludedStores []*core.StoreInfo) []*operator.Operator {

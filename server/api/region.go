@@ -32,7 +32,7 @@ type RegionInfo struct {
 	ID             uint64              `json:"id"`
 	StartKey       string              `json:"start_key"`
 	EndKey         string              `json:"end_key"`
-	LastAccessTime string              `json:last_access_time`
+	LastAccessTime string              `json:"last_access_time"`
 	RegionEpoch    *metapb.RegionEpoch `json:"epoch,omitempty"`
 	Peers          []*metapb.Peer      `json:"peers,omitempty"`
 

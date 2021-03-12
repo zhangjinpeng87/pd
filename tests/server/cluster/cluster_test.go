@@ -130,7 +130,7 @@ func (s *clusterTestSuite) TestGetPutConfig(c *C) {
 	rc := leaderServer.GetRaftCluster()
 	c.Assert(rc, NotNil)
 	// Get region.
-	region := getRegion(c, clusterID, grpcPDClient, []byte("abc"))
+	region := getRegion(c, clusterID, grpcPDClient, leaderServer.GetAddr(), []byte("abc"))
 	c.Assert(region.GetPeers(), HasLen, 1)
 	peer := region.GetPeers()[0]
 
@@ -401,10 +401,7 @@ func (s *clusterTestSuite) TestGetPDMembers(c *C) {
 	leaderServer := tc.GetServer(tc.GetLeader())
 	grpcPDClient := testutil.MustNewGrpcClient(c, leaderServer.GetAddr())
 	clusterID := leaderServer.GetClusterID()
-	req := &pdpb.GetMembersRequest{
-		Header: testutil.NewRequestHeader(clusterID),
-	}
-
+	req := &pdpb.GetMembersRequest{Header: testutil.NewRequestHeader(clusterID)}
 	resp, err := grpcPDClient.GetMembers(context.Background(), req)
 	c.Assert(err, IsNil)
 	// A more strict test can be found at api/member_test.go
@@ -844,7 +841,7 @@ func getStore(c *C, clusterID uint64, grpcPDClient pdpb.PDClient, storeID uint64
 	return resp.GetStore()
 }
 
-func getRegion(c *C, clusterID uint64, grpcPDClient pdpb.PDClient, regionKey []byte) *metapb.Region {
+func getRegion(c *C, clusterID uint64, grpcPDClient pdpb.PDClient, leaderAddr string, regionKey []byte) *metapb.Region {
 	req := &pdpb.GetRegionRequest{
 		Header:    testutil.NewRequestHeader(clusterID),
 		RegionKey: regionKey,
@@ -871,9 +868,7 @@ func getRegionByID(c *C, clusterID uint64, grpcPDClient pdpb.PDClient, regionID 
 }
 
 func getClusterConfig(c *C, clusterID uint64, grpcPDClient pdpb.PDClient) *metapb.Cluster {
-	req := &pdpb.GetClusterConfigRequest{
-		Header: testutil.NewRequestHeader(clusterID),
-	}
+	req := &pdpb.GetClusterConfigRequest{Header: testutil.NewRequestHeader(clusterID)}
 
 	resp, err := grpcPDClient.GetClusterConfig(context.Background(), req)
 	c.Assert(err, IsNil)

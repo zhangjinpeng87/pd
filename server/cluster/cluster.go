@@ -655,7 +655,7 @@ func (c *RaftCluster) processRegionHeartbeat(region *core.RegionInfo) error {
 			if c.regionStats != nil {
 				c.regionStats.ClearDefunctRegion(item.GetID())
 			}
-			c.labelLevelStats.ClearDefunctRegion(item.GetID(), c.opt.GetLocationLabels())
+			c.labelLevelStats.ClearDefunctRegion(item.GetID())
 		}
 
 		// Update related stores.

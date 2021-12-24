@@ -140,6 +140,8 @@ type Config struct {
 	// an election, thus minimizing disruptions.
 	PreVote bool `toml:"enable-prevote"`
 
+	MaxRequestBytes uint `toml:"max-request-bytes" json:"max-request-bytes"`
+
 	Security SecurityConfig `toml:"security" json:"security"`
 
 	LabelProperty LabelPropertyConfig `toml:"label-property" json:"label-property"`
@@ -201,6 +203,7 @@ const (
 	defaultCompactionMode          = "periodic"
 	defaultAutoCompactionRetention = "1h"
 	defaultQuotaBackendBytes       = typeutil.ByteSize(8 * 1024 * 1024 * 1024) // 8GB
+	defaultMaxRequestBytes         = uint(1.5 * 1024 * 1024)                   // 1.5MB
 
 	defaultName                = "pd"
 	defaultClientUrls          = "http://127.0.0.1:2379"
@@ -550,6 +553,9 @@ func (c *Config) Adjust(meta *toml.MetaData, reloading bool) error {
 	adjustString(&c.AutoCompactionRetention, defaultAutoCompactionRetention)
 	if !configMetaData.IsDefined("quota-backend-bytes") {
 		c.QuotaBackendBytes = defaultQuotaBackendBytes
+	}
+	if !configMetaData.IsDefined("max-request-bytes") {
+		c.MaxRequestBytes = defaultMaxRequestBytes
 	}
 	adjustDuration(&c.TickInterval, defaultTickInterval)
 	adjustDuration(&c.ElectionInterval, defaultElectionInterval)
@@ -1254,6 +1260,7 @@ func (c *Config) GenEmbedEtcdConfig() (*embed.Config, error) {
 	cfg.AutoCompactionMode = c.AutoCompactionMode
 	cfg.AutoCompactionRetention = c.AutoCompactionRetention
 	cfg.QuotaBackendBytes = int64(c.QuotaBackendBytes)
+	cfg.MaxRequestBytes = c.MaxRequestBytes
 
 	allowedCN, serr := c.Security.GetOneAllowedCN()
 	if serr != nil {

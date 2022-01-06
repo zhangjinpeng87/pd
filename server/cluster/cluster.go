@@ -130,6 +130,44 @@ type RaftCluster struct {
 	componentManager *component.Manager
 
 	unsafeRecoveryController *unsafeRecoveryController
+
+	// TenantQuotas
+	tenantQuotas *TenantQuotas
+}
+
+type TenantQuotas struct {
+	// tenant_id -> TenantQuota
+	quotas map[uint32]*pdpb.TenantQuota
+}
+
+func NewTenantQuotas() *TenantQuotas {
+	return &TenantQuotas{
+		quotas: make(map[uint32]*pdpb.TenantQuota, 128),
+	}
+}
+
+func (q *TenantQuotas) UpdateQuota(quota *pdpb.TenantQuota) {
+	q.quotas[quota.TenantId] = quota
+}
+
+func (q *TenantQuotas) DeleteQuota(tenantID uint32) {
+	delete(q.quotas, tenantID)
+}
+
+func (q *TenantQuotas) IsEmpty() bool {
+	return len(q.quotas) == 0
+}
+
+func (q *TenantQuotas) Dump() []*pdpb.TenantQuota {
+	if len(q.quotas) == 0 {
+		return nil
+	}
+
+	res := make([]*pdpb.TenantQuota, len(q.quotas))
+	for _, v := range q.quotas {
+		res = append(res, v)
+	}
+	return res
 }
 
 // Status saves some state information.
@@ -149,7 +187,29 @@ func NewRaftCluster(ctx context.Context, root string, clusterID uint64, regionSy
 		regionSyncer: regionSyncer,
 		httpClient:   httpClient,
 		etcdClient:   etcdClient,
+		tenantQuotas: NewTenantQuotas(),
 	}
+}
+
+func (c *RaftCluster) DumpTenantQuotas() []*pdpb.TenantQuota {
+	c.Lock()
+	defer c.Unlock()
+
+	return c.tenantQuotas.Dump()
+}
+
+func (c *RaftCluster) UpdateQuota(quota *pdpb.TenantQuota) {
+	c.Lock()
+	defer c.Unlock()
+
+	c.tenantQuotas.UpdateQuota(quota)
+}
+
+func (c *RaftCluster) DeleteQuota(tenantID uint32) {
+	c.Lock()
+	defer c.Unlock()
+
+	c.tenantQuotas.DeleteQuota(tenantID)
 }
 
 // LoadClusterStatus loads the cluster status.

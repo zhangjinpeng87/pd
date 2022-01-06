@@ -44,6 +44,7 @@ var (
 	replicationModePrefix = "pd/api/v1/config/replication-mode"
 	ruleBundlePrefix      = "pd/api/v1/config/placement-rule"
 	pdServerPrefix        = "pd/api/v1/config/pd-server"
+	tenantQuotaPrefix     = "pd/api/v1/config/tenant-quota"
 )
 
 // NewConfigCommand return a config subcommand of rootCmd
@@ -153,6 +154,7 @@ func NewSetConfigCommand() *cobra.Command {
 	sc.AddCommand(NewSetLabelPropertyCommand())
 	sc.AddCommand(NewSetClusterVersionCommand())
 	sc.AddCommand(newSetReplicationModeCommand())
+	sc.AddCommand(newSetTenantQuotaCommand())
 	return sc
 }
 
@@ -181,6 +183,14 @@ func newSetReplicationModeCommand() *cobra.Command {
 		Use:   "replication-mode <mode> [<key>, <value>]",
 		Short: "set replication mode config",
 		Run:   setReplicationModeCommandFunc,
+	}
+}
+
+func newSetTenantQuotaCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "quota <tenant-id> <read-millicpu> <write-bytes-per-sec>",
+		Short: "set read and write quota for a tenant, 1000 millicpu equal to 1vCPU",
+		Run:   setTenantQuotaCommandFunc,
 	}
 }
 
@@ -388,6 +398,33 @@ func setClusterVersionCommandFunc(cmd *cobra.Command, args []string) {
 		"cluster-version": args[0],
 	}
 	postJSON(cmd, clusterVersionPrefix, input)
+}
+
+func setTenantQuotaCommandFunc(cmd *cobra.Command, args []string) {
+	if len(args) == 3 {
+		arg1, err := strconv.ParseUint(args[0], 10, 64)
+		if err != nil {
+			cmd.Printf("value %v cannot covert to number: %v", args[0], err)
+			return
+		}
+		arg2, err := strconv.ParseUint(args[1], 10, 64)
+		if err != nil {
+			cmd.Printf("value %v cannot covert to number: %v", args[1], err)
+			return
+		}
+		arg3, err := strconv.ParseUint(args[2], 10, 64)
+		if err != nil {
+			cmd.Printf("value %v cannot covert to number: %v", args[2], err)
+			return
+		}
+		postJSON(cmd, tenantQuotaPrefix, map[string]interface{}{
+			"tenant-id":           arg1,
+			"read-millicpu":       arg2,
+			"write-bytes-per-sec": arg3,
+		})
+	} else {
+		cmd.Println(cmd.UsageString())
+	}
 }
 
 func setReplicationModeCommandFunc(cmd *cobra.Command, args []string) {

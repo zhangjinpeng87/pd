@@ -516,3 +516,48 @@ func (h *confHandler) SetReplicationMode(w http.ResponseWriter, r *http.Request)
 func (h *confHandler) GetPDServer(w http.ResponseWriter, r *http.Request) {
 	h.rd.JSON(w, http.StatusOK, h.svr.GetPDServerConfig())
 }
+
+// @Router /config/tenant-quota [set]
+func (h *confHandler) SetTenantQuota(w http.ResponseWriter, r *http.Request) {
+	data, err := io.ReadAll(r.Body)
+	r.Body.Close()
+	if err != nil {
+		h.rd.JSON(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	conf := make(map[string]string)
+	if err := json.Unmarshal(data, &conf); err != nil {
+		h.rd.JSON(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	id, ok1 := conf["tenant-id"]
+	readLimit, ok2 := conf["read-millicpu"]
+	writeLimit, ok3 := conf["write-bytes-per-sec"]
+	if !ok1 || !ok2 || !ok3 {
+		h.rd.JSON(w, http.StatusBadRequest, "args error")
+		return
+	}
+
+	tenantID, err := strconv.Atoi(id)
+	if err != nil {
+		h.rd.JSON(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	readMilliCPU, err := strconv.Atoi(readLimit)
+	if err != nil {
+		h.rd.JSON(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	writeBytesPerSec, err := strconv.Atoi(writeLimit)
+	if err != nil {
+		h.rd.JSON(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	h.svr.GetRaftCluster().SetTenantQuota(uint32(tenantID), uint64(writeBytesPerSec), uint32(readMilliCPU))
+	h.rd.JSON(w, http.StatusOK, "Set quota success.")
+}

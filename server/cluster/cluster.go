@@ -198,11 +198,11 @@ func (c *RaftCluster) DumpTenantQuotas() []*pdpb.TenantQuota {
 	return c.tenantQuotas.Dump()
 }
 
-func (c *RaftCluster) UpdateQuota(quota *pdpb.TenantQuota) {
+func (c *RaftCluster) SetTenantQuota(tenantID uint32, writeBytesPerSec uint64, readMilliCPU uint32) {
 	c.Lock()
 	defer c.Unlock()
 
-	c.tenantQuotas.UpdateQuota(quota)
+	c.tenantQuotas.UpdateQuota(&pdpb.TenantQuota{TenantId: tenantID, WriteBytesPerSec: writeBytesPerSec, ReadMilliCpu: readMilliCPU})
 }
 
 func (c *RaftCluster) DeleteQuota(tenantID uint32) {

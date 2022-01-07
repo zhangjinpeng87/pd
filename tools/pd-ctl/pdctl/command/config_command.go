@@ -74,6 +74,7 @@ func NewShowConfigCommand() *cobra.Command {
 	sc.AddCommand(NewShowClusterVersionCommand())
 	sc.AddCommand(newShowReplicationModeCommand())
 	sc.AddCommand(NewShowServerConfigCommand())
+	sc.AddCommand(NewShowTenantQuotaCommand())
 	return sc
 }
 
@@ -93,6 +94,15 @@ func NewShowScheduleConfigCommand() *cobra.Command {
 		Use:   "schedule",
 		Short: "show schedule config of PD",
 		Run:   showScheduleConfigCommandFunc,
+	}
+	return sc
+}
+
+func NewShowTenantQuotaCommand() *cobra.Command {
+	sc := &cobra.Command{
+		Use:   "quota",
+		Short: "show tenant quota information",
+		Run:   showTenantQuotaConfigCommandFunc,
 	}
 	return sc
 }
@@ -287,6 +297,15 @@ func showReplicationConfigCommandFunc(cmd *cobra.Command, args []string) {
 	cmd.Println(r)
 }
 
+func showTenantQuotaConfigCommandFunc(cmd *cobra.Command, args []string) {
+	r, err := doRequest(cmd, tenantQuotaPrefix, http.MethodGet)
+	if err != nil {
+		cmd.Printf("Failed to get config: %s\n", err)
+		return
+	}
+	cmd.Println(r)
+}
+
 func showLabelPropertyConfigCommandFunc(cmd *cobra.Command, args []string) {
 	r, err := doRequest(cmd, labelPropertyPrefix, http.MethodGet)
 	if err != nil {
@@ -404,17 +423,17 @@ func setTenantQuotaCommandFunc(cmd *cobra.Command, args []string) {
 	if len(args) == 3 {
 		arg1, err := strconv.ParseUint(args[0], 10, 64)
 		if err != nil {
-			cmd.Printf("value %v cannot covert to number: %v", args[0], err)
+			cmd.Printf("value %v cannot covert to unsigned number: %v", args[0], err)
 			return
 		}
 		arg2, err := strconv.ParseUint(args[1], 10, 64)
 		if err != nil {
-			cmd.Printf("value %v cannot covert to number: %v", args[1], err)
+			cmd.Printf("value %v cannot covert to unsigned number: %v", args[1], err)
 			return
 		}
 		arg3, err := strconv.ParseUint(args[2], 10, 64)
 		if err != nil {
-			cmd.Printf("value %v cannot covert to number: %v", args[2], err)
+			cmd.Printf("value %v cannot covert to unsigned number: %v", args[2], err)
 			return
 		}
 		postJSON(cmd, tenantQuotaPrefix, map[string]interface{}{

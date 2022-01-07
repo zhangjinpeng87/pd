@@ -149,6 +149,46 @@ type Server struct {
 	// tsoDispatcher is used to dispatch different TSO requests to
 	// the corresponding forwarding TSO channel.
 	tsoDispatcher sync.Map /* Store as map[string]chan *tsoRequest */
+
+	// Tenant Quotas
+	// tenant Lock
+	tenantLock   sync.RWMutex
+	tenantQuotas *TenantQuotas
+}
+
+type TenantQuotas struct {
+	// tenant_id -> TenantQuota
+	quotas map[uint32]*pdpb.TenantQuota
+}
+
+func NewTenantQuotas() *TenantQuotas {
+	return &TenantQuotas{
+		quotas: make(map[uint32]*pdpb.TenantQuota, 128),
+	}
+}
+
+func (q *TenantQuotas) UpdateQuota(quota *pdpb.TenantQuota) {
+	q.quotas[quota.TenantId] = quota
+}
+
+func (q *TenantQuotas) DeleteQuota(tenantID uint32) {
+	delete(q.quotas, tenantID)
+}
+
+func (q *TenantQuotas) IsEmpty() bool {
+	return len(q.quotas) == 0
+}
+
+func (q *TenantQuotas) Dump() []*pdpb.TenantQuota {
+	if len(q.quotas) == 0 {
+		return nil
+	}
+
+	res := make([]*pdpb.TenantQuota, len(q.quotas))
+	for _, v := range q.quotas {
+		res = append(res, v)
+	}
+	return res
 }
 
 // HandlerBuilder builds a server HTTP handler.
@@ -235,6 +275,7 @@ func CreateServer(ctx context.Context, cfg *config.Config, serviceBuilders ...Ha
 		ctx:               ctx,
 		startTimestamp:    time.Now().Unix(),
 		DiagnosticsServer: sysutil.NewDiagnosticsServer(cfg.Log.File.Filename),
+		tenantQuotas:      NewTenantQuotas(),
 	}
 
 	s.handler = newHandler(s)
@@ -1103,6 +1144,27 @@ func (s *Server) GetRegions() []*core.RegionInfo {
 		return cluster.GetRegions()
 	}
 	return nil
+}
+
+func (s *Server) DumpTenantQuotas() []*pdpb.TenantQuota {
+	s.tenantLock.RLock()
+	defer s.tenantLock.RUnlock()
+
+	return s.tenantQuotas.Dump()
+}
+
+func (s *Server) SetTenantQuota(tenantID uint32, writeBytesPerSec uint64, readMilliCPU uint32) {
+	s.tenantLock.Lock()
+	defer s.tenantLock.Unlock()
+
+	s.tenantQuotas.UpdateQuota(&pdpb.TenantQuota{TenantId: tenantID, WriteBytesPerSec: writeBytesPerSec, ReadMilliCpu: readMilliCPU})
+}
+
+func (s *Server) DeleteQuota(tenantID uint32) {
+	s.tenantLock.Lock()
+	defer s.tenantLock.Unlock()
+
+	s.tenantQuotas.DeleteQuota(tenantID)
 }
 
 // GetClusterStatus gets cluster status.

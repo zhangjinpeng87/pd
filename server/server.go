@@ -184,7 +184,7 @@ func (q *TenantQuotas) Dump() []*pdpb.TenantQuota {
 		return nil
 	}
 
-	res := make([]*pdpb.TenantQuota, len(q.quotas))
+	res := make([]*pdpb.TenantQuota, 0, len(q.quotas))
 	for _, v := range q.quotas {
 		res = append(res, v)
 	}

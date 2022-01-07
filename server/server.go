@@ -1160,7 +1160,7 @@ func (s *Server) SetTenantQuota(tenantID uint32, writeBytesPerSec uint64, readMi
 	s.tenantQuotas.UpdateQuota(&pdpb.TenantQuota{TenantId: tenantID, WriteBytesPerSec: writeBytesPerSec, ReadMilliCpu: readMilliCPU})
 }
 
-func (s *Server) DeleteQuota(tenantID uint32) {
+func (s *Server) DeleteTenantQuota(tenantID uint32) {
 	s.tenantLock.Lock()
 	defer s.tenantLock.Unlock()
 

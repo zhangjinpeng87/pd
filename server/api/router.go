@@ -101,6 +101,7 @@ func createRouter(prefix string, svr *server.Server) *mux.Router {
 	apiRouter.HandleFunc("/config/replication-mode", confHandler.SetReplicationMode).Methods("POST")
 	apiRouter.HandleFunc("/config/tenant-quota", confHandler.GetTenantQuota).Methods("GET")
 	apiRouter.HandleFunc("/config/tenant-quota", confHandler.SetTenantQuota).Methods("POST")
+	apiRouter.HandleFunc("/config/tenant-quota/{tenant-id}", confHandler.DeleteTenantQuota).Methods("DELETE")
 
 	rulesHandler := newRulesHandler(svr, rd)
 	clusterRouter.HandleFunc("/config/rules", rulesHandler.GetAll).Methods("GET")

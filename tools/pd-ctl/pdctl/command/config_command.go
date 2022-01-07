@@ -211,6 +211,17 @@ func NewDeleteConfigCommand() *cobra.Command {
 		Short: "delete the config option",
 	}
 	sc.AddCommand(NewDeleteLabelPropertyConfigCommand())
+	sc.AddCommand(NewDeleteTenantQuotaCommand())
+	return sc
+}
+
+// NewDeleteTenantQuotaCommand a set subcommand of delete subcommand.
+func NewDeleteTenantQuotaCommand() *cobra.Command {
+	sc := &cobra.Command{
+		Use:   "quota <tenant-id>",
+		Short: "delete quota limitation for a tenant",
+		Run:   deleteTenantQuotaConfigCommandFunc,
+	}
 	return sc
 }
 
@@ -391,6 +402,26 @@ func setLabelPropertyConfigCommandFunc(cmd *cobra.Command, args []string) {
 
 func deleteLabelPropertyConfigCommandFunc(cmd *cobra.Command, args []string) {
 	postLabelProperty(cmd, "delete", args)
+}
+
+func deleteTenantQuotaConfigCommandFunc(cmd *cobra.Command, args []string) {
+	if len(args) != 1 {
+		cmd.Println(cmd.UsageString())
+		return
+	}
+
+	_, err := strconv.ParseInt(args[0], 10, 64)
+	if err != nil {
+		cmd.Printf("value %v cannot covert to unsigned number: %v", args[0], err)
+		return
+	}
+
+	_, err2 := doRequest(cmd, path.Join(tenantQuotaPrefix, args[0]), http.MethodDelete)
+	if err2 != nil {
+		cmd.Printf("Failed to delete quota: %s \n", err)
+		return
+	}
+	cmd.Println("Success!")
 }
 
 func postLabelProperty(cmd *cobra.Command, action string, args []string) {

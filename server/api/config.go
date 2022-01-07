@@ -25,6 +25,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gorilla/mux"
 	"github.com/pingcap/errcode"
 	"github.com/pingcap/errors"
 	"github.com/pingcap/log"
@@ -547,4 +548,14 @@ func (h *confHandler) SetTenantQuota(w http.ResponseWriter, r *http.Request) {
 // @Router /config/tenant-quota [get]
 func (h *confHandler) GetTenantQuota(w http.ResponseWriter, r *http.Request) {
 	h.rd.JSON(w, http.StatusOK, h.svr.DumpTenantQuotas())
+}
+
+func (h *confHandler) DeleteTenantQuota(w http.ResponseWriter, r *http.Request) {
+	tenantID, err := strconv.Atoi(mux.Vars(r)["tenant-id"])
+	if err != nil {
+		apiutil.ErrorResp(h.rd, w, errcode.NewInvalidInputErr(errors.New("invalid tenant-id")))
+		return
+	}
+	h.svr.DeleteTenantQuota(uint32(tenantID))
+	h.rd.JSON(w, http.StatusOK, "Delete quota success.")
 }

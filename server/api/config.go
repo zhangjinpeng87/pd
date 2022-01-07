@@ -534,8 +534,8 @@ func (h *confHandler) SetTenantQuota(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tenantID, ok1 := conf["tenant-id"]
-	writeBytesPerSec, ok2 := conf["read-millicpu"]
-	readMilliCPU, ok3 := conf["write-bytes-per-sec"]
+	writeBytesPerSec, ok2 := conf["write-bytes-per-sec"]
+	readMilliCPU, ok3 := conf["read-millicpu"]
 	if !ok1 || !ok2 || !ok3 {
 		h.rd.JSON(w, http.StatusBadRequest, "args error")
 		return

@@ -17,6 +17,7 @@ package command
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 	"os"
@@ -198,9 +199,10 @@ func newSetReplicationModeCommand() *cobra.Command {
 
 func newSetTenantQuotaCommand() *cobra.Command {
 	return &cobra.Command{
-		Use:   "quota <tenant-id> <read-millicpu> <write-bytes-per-sec>",
-		Short: "set read and write quota for a tenant, 1000 millicpu equal to 1vCPU",
-		Run:   setTenantQuotaCommandFunc,
+		Use: "quota <tenant-id> <cpu-quota> [<mem-quota> [<storage-quota>]]",
+		Short: "set quota for a tenant, cpu unit is millicpu, 1000 means 1vCPU and 0 means unlimited,\n" +
+			"mem and storage unit is MB or GB, 0 means unlimited",
+		Run: setTenantQuotaCommandFunc,
 	}
 }
 
@@ -450,28 +452,78 @@ func setClusterVersionCommandFunc(cmd *cobra.Command, args []string) {
 	postJSON(cmd, clusterVersionPrefix, input)
 }
 
+func checkBytesSize(b string) error {
+	bStr := strings.ToUpper(b)
+	var num int
+	errWithMsg := fmt.Errorf("invalid value %s, bytes size should like 512MB, 20GB", b)
+	n, err := fmt.Sscanf(bStr, "%u", &num)
+	if err != nil {
+		return err
+	}
+	if n != 1 {
+		return errWithMsg
+	}
+	numberOfDigits := len(strconv.Itoa(num))
+	if numberOfDigits+2 == len(b) {
+		if !(strings.HasSuffix(bStr, "GB") || strings.HasSuffix(bStr, "MB")) {
+			return errWithMsg
+		}
+	} else if numberOfDigits != len(b) {
+		return errWithMsg
+	}
+
+	return nil
+}
+
 func setTenantQuotaCommandFunc(cmd *cobra.Command, args []string) {
-	if len(args) == 3 {
-		arg1, err := strconv.ParseUint(args[0], 10, 64)
+	args_len := len(args)
+	if args_len >= 2 && args_len <= 4 {
+		_, err := strconv.ParseUint(args[0], 10, 64)
 		if err != nil {
 			cmd.Printf("value %v cannot covert to unsigned number: %v", args[0], err)
 			return
 		}
-		arg2, err := strconv.ParseUint(args[1], 10, 64)
+		_, err = strconv.ParseUint(args[1], 10, 64)
 		if err != nil {
 			cmd.Printf("value %v cannot covert to unsigned number: %v", args[1], err)
 			return
 		}
-		arg3, err := strconv.ParseUint(args[2], 10, 64)
-		if err != nil {
-			cmd.Printf("value %v cannot covert to unsigned number: %v", args[2], err)
-			return
+
+		if args_len >= 3 {
+			err := checkBytesSize(args[2])
+			if err != nil {
+				cmd.Printf("%v", err)
+				return
+			}
+
 		}
-		postJSON(cmd, tenantQuotaPrefix, map[string]interface{}{
-			"tenant-id":           arg1,
-			"read-millicpu":       arg2,
-			"write-bytes-per-sec": arg3,
-		})
+		if args_len == 4 {
+			err := checkBytesSize(args[3])
+			if err != nil {
+				cmd.Printf("%v", err)
+				return
+			}
+		}
+		if args_len == 2 {
+			postJSON(cmd, tenantQuotaPrefix, map[string]interface{}{
+				"tenant-id": args[0],
+				"cpu-quota": args[1],
+			})
+		} else if args_len == 3 {
+			postJSON(cmd, tenantQuotaPrefix, map[string]interface{}{
+				"tenant-id": args[0],
+				"cpu-quota": args[1],
+				"mem-quota": args[2],
+			})
+		} else if args_len == 4 {
+			postJSON(cmd, tenantQuotaPrefix, map[string]interface{}{
+				"tenant-id":     args[0],
+				"cpu-quota":     args[1],
+				"mem-quota":     args[2],
+				"storage-quota": args[3],
+			})
+		}
+
 	} else {
 		cmd.Println(cmd.UsageString())
 	}

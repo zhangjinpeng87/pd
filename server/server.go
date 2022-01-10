@@ -1153,11 +1153,11 @@ func (s *Server) DumpTenantQuotas() []*pdpb.TenantQuota {
 	return s.tenantQuotas.Dump()
 }
 
-func (s *Server) SetTenantQuota(tenantID uint32, writeBytesPerSec uint64, readMilliCPU uint32) {
+func (s *Server) SetTenantQuota(tenantID uint32, cpuQuota uint32, memQuota, storageQuota string) {
 	s.tenantLock.Lock()
 	defer s.tenantLock.Unlock()
 
-	s.tenantQuotas.UpdateQuota(&pdpb.TenantQuota{TenantId: tenantID, WriteBytesPerSec: writeBytesPerSec, ReadMilliCpu: readMilliCPU})
+	s.tenantQuotas.UpdateQuota(&pdpb.TenantQuota{TenantId: tenantID, CpuQuota: cpuQuota, MemQuota: memQuota, StorageQuota: storageQuota})
 }
 
 func (s *Server) DeleteTenantQuota(tenantID uint32) {

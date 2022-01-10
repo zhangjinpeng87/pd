@@ -527,21 +527,33 @@ func (h *confHandler) SetTenantQuota(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	conf := make(map[string]int)
+	conf := make(map[string]string)
 	if err := json.Unmarshal(data, &conf); err != nil {
 		h.rd.JSON(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	tenantID, ok1 := conf["tenant-id"]
-	writeBytesPerSec, ok2 := conf["write-bytes-per-sec"]
-	readMilliCPU, ok3 := conf["read-millicpu"]
-	if !ok1 || !ok2 || !ok3 {
+	cpuQuota, ok2 := conf["cpu-quota"]
+	tenantIDNum, err := strconv.ParseUint(tenantID, 10, 64)
+	if err != nil {
+		h.rd.JSON(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	cpuQuotaNum, err := strconv.ParseUint(cpuQuota, 10, 64)
+	if err != nil {
+		h.rd.JSON(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	memQuota, _ := conf["mem-quota"]
+	storageQuota, _ := conf["storage-quota"]
+	if !ok1 || !ok2 {
 		h.rd.JSON(w, http.StatusBadRequest, "args error")
 		return
 	}
 
-	h.svr.SetTenantQuota(uint32(tenantID), uint64(writeBytesPerSec), uint32(readMilliCPU))
+	h.svr.SetTenantQuota(uint32(tenantIDNum), uint32(cpuQuotaNum), memQuota, storageQuota)
 	h.rd.JSON(w, http.StatusOK, "Set quota success.")
 }
 

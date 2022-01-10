@@ -454,16 +454,16 @@ func setClusterVersionCommandFunc(cmd *cobra.Command, args []string) {
 
 func checkBytesSize(b string) error {
 	bStr := strings.ToUpper(b)
-	var num int
+	var num uint64
 	errWithMsg := fmt.Errorf("invalid value %s, bytes size should like 512MB, 20GB", b)
-	n, err := fmt.Sscanf(bStr, "%u", &num)
+	n, err := fmt.Sscanf(bStr, "%d", &num)
 	if err != nil {
 		return err
 	}
-	if n != 1 {
+	if n != 1 { // must scan a number
 		return errWithMsg
 	}
-	numberOfDigits := len(strconv.Itoa(num))
+	numberOfDigits := len(strconv.FormatUint(num, 10))
 	if numberOfDigits+2 == len(b) {
 		if !(strings.HasSuffix(bStr, "GB") || strings.HasSuffix(bStr, "MB")) {
 			return errWithMsg
@@ -480,27 +480,25 @@ func setTenantQuotaCommandFunc(cmd *cobra.Command, args []string) {
 	if args_len >= 2 && args_len <= 4 {
 		_, err := strconv.ParseUint(args[0], 10, 64)
 		if err != nil {
-			cmd.Printf("value %v cannot covert to unsigned number: %v", args[0], err)
+			cmd.Printf("value {%v} cannot covert to unsigned number\n", args[0])
 			return
 		}
 		_, err = strconv.ParseUint(args[1], 10, 64)
 		if err != nil {
-			cmd.Printf("value %v cannot covert to unsigned number: %v", args[1], err)
+			cmd.Printf("value {%v} cannot covert to unsigned number\n", args[1])
 			return
 		}
-
 		if args_len >= 3 {
 			err := checkBytesSize(args[2])
 			if err != nil {
-				cmd.Printf("%v", err)
+				cmd.Println(err)
 				return
 			}
-
 		}
 		if args_len == 4 {
 			err := checkBytesSize(args[3])
 			if err != nil {
-				cmd.Printf("%v", err)
+				cmd.Println(err)
 				return
 			}
 		}
@@ -515,7 +513,7 @@ func setTenantQuotaCommandFunc(cmd *cobra.Command, args []string) {
 				"cpu-quota": args[1],
 				"mem-quota": args[2],
 			})
-		} else if args_len == 4 {
+		} else {
 			postJSON(cmd, tenantQuotaPrefix, map[string]interface{}{
 				"tenant-id":     args[0],
 				"cpu-quota":     args[1],
@@ -523,7 +521,6 @@ func setTenantQuotaCommandFunc(cmd *cobra.Command, args []string) {
 				"storage-quota": args[3],
 			})
 		}
-
 	} else {
 		cmd.Println(cmd.UsageString())
 	}

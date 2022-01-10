@@ -535,6 +535,11 @@ func (h *confHandler) SetTenantQuota(w http.ResponseWriter, r *http.Request) {
 
 	tenantID, ok1 := conf["tenant-id"]
 	cpuQuota, ok2 := conf["cpu-quota"]
+	if !ok1 || !ok2 {
+		h.rd.JSON(w, http.StatusBadRequest, "args error")
+		return
+	}
+
 	tenantIDNum, err := strconv.ParseUint(tenantID, 10, 64)
 	if err != nil {
 		h.rd.JSON(w, http.StatusBadRequest, err.Error())
@@ -545,13 +550,8 @@ func (h *confHandler) SetTenantQuota(w http.ResponseWriter, r *http.Request) {
 		h.rd.JSON(w, http.StatusBadRequest, err.Error())
 		return
 	}
-
-	memQuota, _ := conf["mem-quota"]
-	storageQuota, _ := conf["storage-quota"]
-	if !ok1 || !ok2 {
-		h.rd.JSON(w, http.StatusBadRequest, "args error")
-		return
-	}
+	memQuota := conf["mem-quota"]
+	storageQuota := conf["storage-quota"]
 
 	h.svr.SetTenantQuota(uint32(tenantIDNum), uint32(cpuQuotaNum), memQuota, storageQuota)
 	h.rd.JSON(w, http.StatusOK, "Set quota success.")

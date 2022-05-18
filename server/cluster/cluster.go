@@ -223,6 +223,7 @@ func (c *RaftCluster) InitCluster(
 	c.progressManager = progress.NewManager()
 	c.changedRegions = make(chan *core.RegionInfo, defaultChangedRegionsLimit)
 	c.prevStoreLimit = make(map[uint64]map[storelimit.Type]float64)
+	c.unsafeRecoveryController = newUnsafeRecoveryController(c)
 }
 
 // Start starts a cluster.
@@ -265,7 +266,6 @@ func (c *RaftCluster) Start(s Server) error {
 	c.coordinator = newCoordinator(c.ctx, cluster, s.GetHBStreams())
 	c.regionStats = statistics.NewRegionStatistics(c.opt, c.ruleManager, c.storeConfigManager)
 	c.limiter = NewStoreLimiter(s.GetPersistOptions())
-	c.unsafeRecoveryController = newUnsafeRecoveryController(cluster)
 
 	c.wg.Add(8)
 	go c.runCoordinator()
@@ -630,8 +630,6 @@ func (c *RaftCluster) RemoveSuspectRegion(id uint64) {
 
 // GetUnsafeRecoveryController returns the unsafe recovery controller.
 func (c *RaftCluster) GetUnsafeRecoveryController() *unsafeRecoveryController {
-	c.RLock()
-	defer c.RUnlock()
 	return c.unsafeRecoveryController
 }
 
@@ -989,6 +987,11 @@ func (c *RaftCluster) GetAverageRegionSize() int64 {
 // DropCacheRegion removes a region from the cache.
 func (c *RaftCluster) DropCacheRegion(id uint64) {
 	c.core.RemoveRegionIfExist(id)
+}
+
+// DropCacheAllRegion removes all regions from the cache.
+func (c *RaftCluster) DropCacheAllRegion() {
+	c.core.ResetRegionCache()
 }
 
 // GetMetaStores gets stores from cluster.

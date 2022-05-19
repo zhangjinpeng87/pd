@@ -207,3 +207,10 @@ func (b *BucketTreeItem) calculateHotDegree() {
 		}
 	}
 }
+
+// collectBucketsMetrics collects the metrics of the hot stats.
+func (b *BucketTreeItem) collectBucketsMetrics() {
+	for _, bucket := range b.stats {
+		bucketsHotDegreeHist.Observe(float64(bucket.HotDegree))
+	}
+}

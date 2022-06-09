@@ -16,10 +16,10 @@ package dashboard_test
 
 import (
 	"context"
+	"testing"
 	"time"
 
-	. "github.com/pingcap/check"
-
+	"github.com/stretchr/testify/require"
 	"github.com/tikv/pd/pkg/dashboard"
 	"github.com/tikv/pd/tests"
 
@@ -27,33 +27,31 @@ import (
 	_ "github.com/tikv/pd/server/schedulers"
 )
 
-var _ = Suite(&raceTestSuite{})
+func TestCancelDuringStarting(t *testing.T) {
+	prepareTestConfig()
+	defer resetTestConfig()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-type raceTestSuite struct{}
+	re := require.New(t)
+	cluster, err := tests.NewTestCluster(ctx, 1)
+	re.NoError(err)
+	defer cluster.Destroy()
+	re.NoError(cluster.RunInitialServers())
+	cluster.WaitLeader()
 
-func (s *raceTestSuite) SetUpSuite(c *C) {
+	time.Sleep(60 * time.Millisecond)
+	cancel()
+}
+
+func prepareTestConfig() {
 	dashboard.SetCheckInterval(50 * time.Millisecond)
 	tests.WaitLeaderReturnDelay = 0
 	tests.WaitLeaderCheckInterval = 20 * time.Millisecond
 }
 
-func (s *raceTestSuite) TearDownSuite(c *C) {
+func resetTestConfig() {
 	dashboard.SetCheckInterval(time.Second)
 	tests.WaitLeaderReturnDelay = 20 * time.Millisecond
 	tests.WaitLeaderCheckInterval = 500 * time.Millisecond
-}
-
-func (s *raceTestSuite) TestCancelDuringStarting(c *C) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	cluster, err := tests.NewTestCluster(ctx, 1)
-	c.Assert(err, IsNil)
-	defer cluster.Destroy()
-	err = cluster.RunInitialServers()
-	c.Assert(err, IsNil)
-	cluster.WaitLeader()
-
-	time.Sleep(60 * time.Millisecond)
-	cancel()
 }

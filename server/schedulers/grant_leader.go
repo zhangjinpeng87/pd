@@ -27,6 +27,7 @@ import (
 	"github.com/tikv/pd/server/core"
 	"github.com/tikv/pd/server/schedule"
 	"github.com/tikv/pd/server/schedule/operator"
+	"github.com/tikv/pd/server/schedule/plan"
 	"github.com/tikv/pd/server/storage/endpoint"
 	"github.com/unrolled/render"
 )
@@ -230,7 +231,7 @@ func (s *grantLeaderScheduler) IsScheduleAllowed(cluster schedule.Cluster) bool 
 	return allowed
 }
 
-func (s *grantLeaderScheduler) Schedule(cluster schedule.Cluster) []*operator.Operator {
+func (s *grantLeaderScheduler) Schedule(cluster schedule.Cluster, dryRun bool) ([]*operator.Operator, []plan.Plan) {
 	schedulerCounter.WithLabelValues(s.GetName(), "schedule").Inc()
 	s.conf.mu.RLock()
 	defer s.conf.mu.RUnlock()
@@ -252,7 +253,7 @@ func (s *grantLeaderScheduler) Schedule(cluster schedule.Cluster) []*operator.Op
 		ops = append(ops, op)
 	}
 
-	return ops
+	return ops, nil
 }
 
 type grantLeaderHandler struct {

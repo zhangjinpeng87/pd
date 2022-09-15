@@ -468,7 +468,7 @@ func (l *balanceLeaderScheduler) transferLeaderOut(solver *solver, collector *pl
 	targets := solver.GetFollowerStores(solver.region)
 	finalFilters := l.filters
 	opts := solver.GetOpts()
-	if leaderFilter := filter.NewPlacementLeaderSafeguard(l.GetName(), opts, solver.GetBasicCluster(), solver.GetRuleManager(), solver.region, solver.source); leaderFilter != nil {
+	if leaderFilter := filter.NewPlacementLeaderSafeguard(l.GetName(), opts, solver.GetBasicCluster(), solver.GetRuleManager(), solver.region, solver.source, false /*allowMoveLeader*/); leaderFilter != nil {
 		finalFilters = append(l.filters, leaderFilter)
 	}
 	targets = filter.SelectTargetStores(targets, finalFilters, opts, nil)
@@ -517,7 +517,7 @@ func (l *balanceLeaderScheduler) transferLeaderIn(solver *solver, collector *pla
 	}
 	finalFilters := l.filters
 	opts := solver.GetOpts()
-	if leaderFilter := filter.NewPlacementLeaderSafeguard(l.GetName(), opts, solver.GetBasicCluster(), solver.GetRuleManager(), solver.region, solver.source); leaderFilter != nil {
+	if leaderFilter := filter.NewPlacementLeaderSafeguard(l.GetName(), opts, solver.GetBasicCluster(), solver.GetRuleManager(), solver.region, solver.source, false /*allowMoveLeader*/); leaderFilter != nil {
 		finalFilters = append(l.filters, leaderFilter)
 	}
 	target := filter.NewCandidates([]*core.StoreInfo{solver.target}).

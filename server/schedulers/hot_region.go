@@ -642,21 +642,30 @@ func (bs *balanceSolver) tryAddPendingInfluence() bool {
 	// main peer
 	srcStoreID := bs.best.srcStore.GetID()
 	dstStoreID := bs.best.dstStore.GetID()
-	infl := statistics.Influence{Loads: make([]float64, statistics.RegionStatCount), Count: 1}
-	bs.rwTy.SetFullLoadRates(infl.Loads, bs.best.mainPeerStat.GetLoads())
+	infl := bs.collectPendingInfluence(bs.best.mainPeerStat)
 	if !bs.sche.tryAddPendingInfluence(bs.ops[0], srcStoreID, dstStoreID, infl, maxZombieDur) {
 		return false
 	}
 	// revert peers
 	if bs.best.revertPeerStat != nil {
-		infl = statistics.Influence{Loads: make([]float64, statistics.RegionStatCount), Count: 1}
-		bs.rwTy.SetFullLoadRates(infl.Loads, bs.best.revertPeerStat.GetLoads())
+		infl := bs.collectPendingInfluence(bs.best.revertPeerStat)
 		if !bs.sche.tryAddPendingInfluence(bs.ops[1], dstStoreID, srcStoreID, infl, maxZombieDur) {
 			return false
 		}
 	}
 	bs.logBestSolution()
 	return true
+}
+
+func (bs *balanceSolver) collectPendingInfluence(peer *statistics.HotPeerStat) statistics.Influence {
+	infl := statistics.Influence{Loads: make([]float64, statistics.RegionStatCount), Count: 1}
+	bs.rwTy.SetFullLoadRates(infl.Loads, peer.GetLoads())
+	inverse := bs.rwTy.Inverse()
+	another := bs.GetHotPeerStat(inverse, peer.RegionID, peer.StoreID)
+	if another != nil {
+		inverse.SetFullLoadRates(infl.Loads, another.GetLoads())
+	}
+	return infl
 }
 
 // Depending on the source of the statistics used, a different ZombieDuration will be used.

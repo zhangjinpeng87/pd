@@ -499,8 +499,8 @@ type labelConstraintFilter struct {
 	constraints []placement.LabelConstraint
 }
 
-// NewLabelConstaintFilter creates a filter that selects stores satisfy the constraints.
-func NewLabelConstaintFilter(scope string, constraints []placement.LabelConstraint) Filter {
+// NewLabelConstraintFilter creates a filter that selects stores satisfy the constraints.
+func NewLabelConstraintFilter(scope string, constraints []placement.LabelConstraint) Filter {
 	return labelConstraintFilter{scope: scope, constraints: constraints}
 }
 

@@ -119,6 +119,8 @@ type RaftCluster struct {
 	storeConfigManager *config.StoreConfigManager
 	storage            storage.Storage
 	minResolvedTS      uint64
+	externalTS         uint64
+
 	// Keep the previous store limit settings when removing a store.
 	prevStoreLimit map[uint64]map[storelimit.Type]float64
 
@@ -270,6 +272,10 @@ func (c *RaftCluster) Start(s Server) error {
 	c.coordinator = newCoordinator(c.ctx, cluster, s.GetHBStreams())
 	c.regionStats = statistics.NewRegionStatistics(c.opt, c.ruleManager, c.storeConfigManager)
 	c.limiter = NewStoreLimiter(s.GetPersistOptions())
+	c.externalTS, err = c.storage.LoadExternalTS()
+	if err != nil {
+		log.Error("load external timestamp meets error", zap.Error(err))
+	}
 
 	c.wg.Add(8)
 	go c.runCoordinator()
@@ -2227,6 +2233,25 @@ func (c *RaftCluster) GetMinResolvedTS() uint64 {
 		return math.MaxUint64
 	}
 	return c.minResolvedTS
+}
+
+// GetExternalTS returns the external timestamp.
+func (c *RaftCluster) GetExternalTS() uint64 {
+	c.RLock()
+	defer c.RUnlock()
+	if !c.isInitialized() {
+		return math.MaxUint64
+	}
+	return c.externalTS
+}
+
+// SetExternalTS sets the external timestamp.
+func (c *RaftCluster) SetExternalTS(timestamp uint64) error {
+	c.Lock()
+	defer c.Unlock()
+	c.externalTS = timestamp
+	c.storage.SaveExternalTS(timestamp)
+	return nil
 }
 
 // SetStoreLimit sets a store limit for a given type and rate.

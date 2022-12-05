@@ -442,7 +442,7 @@ func (f *hotPeerCache) updateHotPeerStat(region *core.RegionInfo, newItem, oldIt
 		newItem.rollingLoads[i].Add(deltaLoads[k], interval)
 	}
 
-	isFull := newItem.rollingLoads[0].isFull() // The intervals of dims are the same, so it is only necessary to determine whether any of them
+	isFull := newItem.rollingLoads[0].isFull(f.interval()) // The intervals of dims are the same, so it is only necessary to determine whether any of them
 	if !isFull {
 		// not update hot degree and anti count
 		f.inheritItem(newItem, oldItem)
@@ -481,9 +481,9 @@ func (f *hotPeerCache) updateNewHotPeerStat(newItem *HotPeerStat, deltaLoads []f
 	newItem.actionType = Add
 	newItem.rollingLoads = make([]*dimStat, len(regionStats))
 	for i, k := range regionStats {
-		ds := newDimStat(k, f.interval())
+		ds := newDimStat(f.interval())
 		ds.Add(deltaLoads[k], interval)
-		if ds.isFull() {
+		if ds.isFull(f.interval()) {
 			ds.clearLastAverage()
 		}
 		newItem.rollingLoads[i] = ds

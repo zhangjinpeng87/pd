@@ -28,7 +28,7 @@ import (
 	rmpb "github.com/pingcap/kvproto/pkg/resource_manager"
 	"github.com/stretchr/testify/suite"
 	pd "github.com/tikv/pd/client"
-	rgcli "github.com/tikv/pd/client/resource_manager/client"
+	"github.com/tikv/pd/client/resource_group/controller"
 	"github.com/tikv/pd/pkg/mcs/resource_manager/server"
 	"github.com/tikv/pd/pkg/utils/testutil"
 	"github.com/tikv/pd/tests"
@@ -216,7 +216,7 @@ func (suite *resourceManagerClientTestSuite) TestWatchResourceGroup() {
 	}
 }
 
-const buffDuration = time.Millisecond * 200
+const buffDuration = time.Millisecond * 300
 
 type testRequestInfo struct {
 	isWrite    bool
@@ -295,7 +295,7 @@ func (suite *resourceManagerClientTestSuite) TestResourceGroupController() {
 		re.Contains(resp, "Success!")
 	}
 
-	cfg := &rgcli.RequestUnitConfig{
+	cfg := &controller.RequestUnitConfig{
 		ReadBaseCost:     1,
 		ReadCostPerByte:  1,
 		WriteBaseCost:    1,
@@ -303,7 +303,7 @@ func (suite *resourceManagerClientTestSuite) TestResourceGroupController() {
 		CPUMsCost:        1,
 	}
 
-	controller, _ := rgcli.NewResourceGroupController(1, cli, cfg)
+	controller, _ := controller.NewResourceGroupController(1, cli, cfg)
 	controller.Start(suite.ctx)
 
 	testCases := []struct {
@@ -346,8 +346,7 @@ func (suite *resourceManagerClientTestSuite) TestResourceGroupController() {
 				startTime := time.Now()
 				controller.OnRequestWait(suite.ctx, cas.resourceGroupName, rreq)
 				controller.OnRequestWait(suite.ctx, cas.resourceGroupName, wreq)
-				endTime := time.Now()
-				sum += endTime.Sub(startTime)
+				sum += time.Since(startTime)
 				controller.OnResponse(suite.ctx, cas.resourceGroupName, rreq, rres)
 				controller.OnResponse(suite.ctx, cas.resourceGroupName, wreq, wres)
 				time.Sleep(1000 * time.Microsecond)

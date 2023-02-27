@@ -126,6 +126,11 @@ func (s *Server) Close() {
 	log.Info("resource manager server is closed")
 }
 
+// GetRequestUnitConfig returns the RU config.
+func (s *Server) GetRequestUnitConfig() *RequestUnitConfig {
+	return &s.cfg.RequestUnit
+}
+
 // GetClient returns builtin etcd client.
 func (s *Server) GetClient() *clientv3.Client {
 	return s.etcdClient
@@ -253,7 +258,7 @@ func (s *Server) GetPrimary() bs.MemberProvider {
 }
 
 func (s *Server) startServer() error {
-	manager := NewManager(s)
+	manager := NewManager[*Server](s)
 	s.service = &Service{
 		ctx:     s.ctx,
 		manager: manager,

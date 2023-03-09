@@ -90,6 +90,8 @@ type Server struct {
 	serverLoopCancel func()
 	serverLoopWg     sync.WaitGroup
 
+	handler *Handler
+
 	cfg         *Config
 	clusterID   uint64
 	rootPath    string
@@ -130,6 +132,16 @@ func (s *Server) Name() string {
 // Context returns the context of server.
 func (s *Server) Context() context.Context {
 	return s.ctx
+}
+
+// GetHandler returns the handler.
+func (s *Server) GetHandler() *Handler {
+	return s.handler
+}
+
+// GetBasicServer returns the basic server.
+func (s *Server) GetBasicServer() bs.Server {
+	return s
 }
 
 // Run runs the TSO server.
@@ -567,7 +579,8 @@ func (s *Server) startServer() (err error) {
 	log.Info("joining primary election", zap.String("participant-name", uniqueName), zap.Uint64("participant-id", uniqueID))
 
 	s.participant = member.NewParticipant(s.etcdClient, uniqueID)
-	s.participant.InitInfo(uniqueName, tsoKeyspaceGroupPrimaryElectionPrefix+fmt.Sprintf("%05d", 0), "primary", "keyspace group primary election")
+	s.participant.InitInfo(uniqueName, tsoKeyspaceGroupPrimaryElectionPrefix+fmt.Sprintf("%05d", 0),
+		"primary", "keyspace group primary election", s.cfg.ListenAddr)
 	s.participant.SetMemberDeployPath(s.participant.ID())
 	s.participant.SetMemberBinaryVersion(s.participant.ID(), versioninfo.PDReleaseVersion)
 	s.participant.SetMemberGitHash(s.participant.ID(), versioninfo.PDGitHash)
@@ -623,6 +636,7 @@ func CreateServer(ctx context.Context, cfg *Config) *Server {
 		cfg:               cfg,
 		ctx:               ctx,
 	}
+	svr.handler = newHandler(svr)
 	return svr
 }
 

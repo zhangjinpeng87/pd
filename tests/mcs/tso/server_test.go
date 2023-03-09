@@ -120,13 +120,20 @@ func (suite *tsoServerTestSuite) TestTSOServerRegister() {
 	s, cleanup, err := startSingleTSOTestServer(suite.ctx, re, suite.backendEndpoints)
 	re.NoError(err)
 
+	serviceName := "tso"
 	client := suite.pdLeader.GetEtcdClient()
-	endpoints, err := discovery.Discover(client, "tso")
+	endpoints, err := discovery.Discover(client, serviceName)
 	re.NoError(err)
 	re.Equal(s.GetConfig().ListenAddr, endpoints[0])
 
+	// test API server discovery
+	exist, addr, err := suite.pdLeader.GetServer().GetServicePrimaryAddr(suite.ctx, serviceName)
+	re.NoError(err)
+	re.True(exist)
+	re.Equal(s.GetConfig().ListenAddr, addr)
+
 	cleanup()
-	endpoints, err = discovery.Discover(client, "tso")
+	endpoints, err = discovery.Discover(client, serviceName)
 	re.NoError(err)
 	re.Empty(endpoints)
 }

@@ -87,7 +87,9 @@ func (suite *serverRegisterTestSuite) checkServerRegister(serviceName string) {
 	// test API server discovery
 	endpoints, err := discovery.Discover(client, serviceName)
 	re.NoError(err)
-	re.Equal(addr, endpoints[0])
+	returnedEntry := &discovery.ServiceRegistryEntry{}
+	returnedEntry.Deserialize([]byte(endpoints[0]))
+	re.Equal(addr, returnedEntry.ServiceAddr)
 
 	// test primary when only one server
 	primary, exist := suite.pdLeader.GetServer().GetServicePrimaryAddr(suite.ctx, serviceName)

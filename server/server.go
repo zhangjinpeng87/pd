@@ -195,7 +195,13 @@ type Server struct {
 
 	// tsoDispatcher is used to dispatch different TSO requests to
 	// the corresponding forwarding TSO channel.
-	tsoDispatcher sync.Map /* Store as map[string]chan *tsoRequest */
+	tsoDispatcher *tsoutil.TSODispatcher
+	// tsoProtoFactory is the abstract factory for creating tso
+	// related data structures defined in the TSO grpc service
+	tsoProtoFactory *tsoutil.TSOProtoFactory
+	// pdProtoFactory is the abstract factory for creating tso
+	// related data structures defined in the PD grpc service
+	pdProtoFactory *tsoutil.PDProtoFactory
 
 	serviceRateLimiter *ratelimit.Limiter
 	serviceLabels      map[string][]apiutil.AccessPath
@@ -394,6 +400,9 @@ func (s *Server) startServer(ctx context.Context) error {
 	}
 	defaultStorage := storage.NewStorageWithEtcdBackend(s.client, s.rootPath)
 	s.storage = storage.NewCoreStorage(defaultStorage, regionStorage)
+	s.tsoDispatcher = tsoutil.NewTSODispatcher(tsoProxyHandleDuration, tsoProxyBatchSize)
+	s.tsoProtoFactory = &tsoutil.TSOProtoFactory{}
+	s.pdProtoFactory = &tsoutil.PDProtoFactory{}
 	if !s.IsAPIServiceMode() {
 		s.tsoAllocatorManager = tso.NewAllocatorManager(
 			s.member, s.rootPath, s.storage, s.cfg.IsLocalTSOEnabled(), s.cfg.GetTSOSaveInterval(), s.cfg.GetTSOUpdatePhysicalInterval(), s.cfg.GetTLSConfig(),

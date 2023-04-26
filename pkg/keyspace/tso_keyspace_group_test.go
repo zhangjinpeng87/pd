@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pingcap/kvproto/pkg/keyspacepb"
 	"github.com/stretchr/testify/suite"
 	"github.com/tikv/pd/pkg/mcs/utils"
 	"github.com/tikv/pd/pkg/mock/mockcluster"
@@ -251,6 +252,9 @@ func (suite *keyspaceGroupTestSuite) TestKeyspaceGroupSplit() {
 	// split the keyspace group 1 to 4
 	err = suite.kgm.SplitKeyspaceGroupByID(1, 4, []uint32{333})
 	re.ErrorIs(err, ErrKeyspaceGroupNotEnoughReplicas)
+	// split the keyspace group 2 to 4 without giving any keyspace
+	err = suite.kgm.SplitKeyspaceGroupByID(2, 4, []uint32{})
+	re.ErrorIs(err, ErrKeyspaceNotInKeyspaceGroup)
 	// split the keyspace group 2 to 4
 	err = suite.kgm.SplitKeyspaceGroupByID(2, 4, []uint32{333})
 	re.NoError(err)
@@ -316,4 +320,32 @@ func (suite *keyspaceGroupTestSuite) TestKeyspaceGroupSplit() {
 	// split with the wrong keyspaces.
 	err = suite.kgm.SplitKeyspaceGroupByID(2, 5, []uint32{111, 222, 444})
 	re.ErrorIs(err, ErrKeyspaceNotInKeyspaceGroup)
+}
+
+func (suite *keyspaceGroupTestSuite) TestPatrolKeyspaceAssignment() {
+	re := suite.Require()
+	// Force the patrol to run once.
+	suite.kgm.patrolKeyspaceAssignmentOnce = false
+	// Create a keyspace group without any keyspace.
+	err := suite.kgm.CreateKeyspaceGroups([]*endpoint.KeyspaceGroup{
+		{
+			ID:       uint32(1),
+			UserKind: endpoint.Basic.String(),
+			Members:  make([]endpoint.KeyspaceGroupMember, 2),
+		},
+	})
+	re.NoError(err)
+	// Create a keyspace without any keyspace group.
+	now := time.Now().Unix()
+	err = suite.kg.saveNewKeyspace(&keyspacepb.KeyspaceMeta{
+		Id:             111,
+		Name:           "111",
+		State:          keyspacepb.KeyspaceState_ENABLED,
+		CreatedAt:      now,
+		StateChangedAt: now,
+	})
+	re.NoError(err)
+	// Split to see if the keyspace is attached to the group.
+	err = suite.kgm.SplitKeyspaceGroupByID(1, 2, []uint32{111})
+	re.NoError(err)
 }

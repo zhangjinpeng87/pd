@@ -137,6 +137,24 @@ func (suite *tsoClientTestSuite) SetupSuite() {
 			suite.keyspaceIDs = append(suite.keyspaceIDs, keyspaceGroup.keyspaceIDs...)
 		}
 
+		// Make sure all keyspace groups are available.
+		testutil.Eventually(re, func() bool {
+			for _, keyspaceID := range suite.keyspaceIDs {
+				served := false
+				for _, server := range suite.tsoCluster.GetServers() {
+					if server.IsKeyspaceServing(keyspaceID, mcsutils.DefaultKeyspaceGroupID) {
+						served = true
+						break
+					}
+				}
+				if !served {
+					return false
+				}
+			}
+			return true
+		}, testutil.WithWaitFor(5*time.Second), testutil.WithTickInterval(50*time.Millisecond))
+
+		// Create clients and make sure they all have discovered the tso service.
 		suite.clients = mcs.WaitForMultiKeyspacesTSOAvailable(
 			suite.ctx, re, suite.keyspaceIDs, strings.Split(suite.backendEndpoints, ","))
 		re.Equal(len(suite.keyspaceIDs), len(suite.clients))
@@ -221,6 +239,38 @@ func (suite *tsoClientTestSuite) TestDiscoverTSOServiceWithLegacyPath() {
 				lastTS = ts
 			}
 		}()
+	}
+	wg.Wait()
+}
+
+// TestGetMinTS tests the correctness of GetMinTS.
+func (suite *tsoClientTestSuite) TestGetMinTS() {
+	var wg sync.WaitGroup
+	wg.Add(tsoRequestConcurrencyNumber * len(suite.clients))
+	for i := 0; i < tsoRequestConcurrencyNumber; i++ {
+		for _, client := range suite.clients {
+			go func(client pd.Client) {
+				defer wg.Done()
+				var lastMinTS uint64
+				for j := 0; j < tsoRequestRound; j++ {
+					physical, logical, err := client.GetMinTS(suite.ctx)
+					suite.NoError(err)
+					minTS := tsoutil.ComposeTS(physical, logical)
+					suite.Less(lastMinTS, minTS)
+					lastMinTS = minTS
+
+					// Now we check whether the returned ts is the minimum one
+					// among all keyspace groups, i.e., the returned ts is
+					// less than the new timestamps of all keyspace groups.
+					for _, client := range suite.clients {
+						physical, logical, err := client.GetTS(suite.ctx)
+						suite.NoError(err)
+						ts := tsoutil.ComposeTS(physical, logical)
+						suite.Less(minTS, ts)
+					}
+				}
+			}(client)
+		}
 	}
 	wg.Wait()
 }

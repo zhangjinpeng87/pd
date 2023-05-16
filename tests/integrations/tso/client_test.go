@@ -114,6 +114,10 @@ func (suite *tsoClientTestSuite) SetupSuite() {
 			{2, []uint32{2}},
 		}
 
+		for _, keyspaceGroup := range suite.keyspaceGroups {
+			suite.keyspaceIDs = append(suite.keyspaceIDs, keyspaceGroup.keyspaceIDs...)
+		}
+
 		for _, param := range suite.keyspaceGroups {
 			if param.keyspaceGroupID == 0 {
 				// we have already created default keyspace group, so we can skip it.
@@ -133,16 +137,22 @@ func (suite *tsoClientTestSuite) SetupSuite() {
 			})
 		}
 
-		for _, keyspaceGroup := range suite.keyspaceGroups {
-			suite.keyspaceIDs = append(suite.keyspaceIDs, keyspaceGroup.keyspaceIDs...)
-		}
+		suite.waitForAllKeyspaceGroupsInServing(re)
+	}
+}
 
-		// Make sure all keyspace groups are available.
-		testutil.Eventually(re, func() bool {
-			for _, keyspaceID := range suite.keyspaceIDs {
+func (suite *tsoClientTestSuite) waitForAllKeyspaceGroupsInServing(re *require.Assertions) {
+	// The tso servers are loading keyspace groups asynchronously. Make sure all keyspace groups
+	// are available for serving tso requests from corresponding keyspaces by querying
+	// IsKeyspaceServing(keyspaceID, the Desired KeyspaceGroupID). if use default keyspace group id
+	// in the query, it will always return true as the keyspace will be served by default keyspace
+	// group before the keyspace groups are loaded.
+	testutil.Eventually(re, func() bool {
+		for _, keyspaceGroup := range suite.keyspaceGroups {
+			for _, keyspaceID := range keyspaceGroup.keyspaceIDs {
 				served := false
 				for _, server := range suite.tsoCluster.GetServers() {
-					if server.IsKeyspaceServing(keyspaceID, mcsutils.DefaultKeyspaceGroupID) {
+					if server.IsKeyspaceServing(keyspaceID, keyspaceGroup.keyspaceGroupID) {
 						served = true
 						break
 					}
@@ -151,14 +161,14 @@ func (suite *tsoClientTestSuite) SetupSuite() {
 					return false
 				}
 			}
-			return true
-		}, testutil.WithWaitFor(5*time.Second), testutil.WithTickInterval(50*time.Millisecond))
+		}
+		return true
+	}, testutil.WithWaitFor(5*time.Second), testutil.WithTickInterval(50*time.Millisecond))
 
-		// Create clients and make sure they all have discovered the tso service.
-		suite.clients = mcs.WaitForMultiKeyspacesTSOAvailable(
-			suite.ctx, re, suite.keyspaceIDs, strings.Split(suite.backendEndpoints, ","))
-		re.Equal(len(suite.keyspaceIDs), len(suite.clients))
-	}
+	// Create clients and make sure they all have discovered the tso service.
+	suite.clients = mcs.WaitForMultiKeyspacesTSOAvailable(
+		suite.ctx, re, suite.keyspaceIDs, strings.Split(suite.backendEndpoints, ","))
+	re.Equal(len(suite.keyspaceIDs), len(suite.clients))
 }
 
 func (suite *tsoClientTestSuite) TearDownSuite() {
@@ -245,9 +255,8 @@ func (suite *tsoClientTestSuite) TestDiscoverTSOServiceWithLegacyPath() {
 
 // TestGetMinTS tests the correctness of GetMinTS.
 func (suite *tsoClientTestSuite) TestGetMinTS() {
-	// Skip this test for the time being due to https://github.com/tikv/pd/issues/6453
-	// TODO: fix it #6453
-	suite.T().SkipNow()
+	re := suite.Require()
+	suite.waitForAllKeyspaceGroupsInServing(re)
 
 	var wg sync.WaitGroup
 	wg.Add(tsoRequestConcurrencyNumber * len(suite.clients))
@@ -258,9 +267,9 @@ func (suite *tsoClientTestSuite) TestGetMinTS() {
 				var lastMinTS uint64
 				for j := 0; j < tsoRequestRound; j++ {
 					physical, logical, err := client.GetMinTS(suite.ctx)
-					suite.NoError(err)
+					re.NoError(err)
 					minTS := tsoutil.ComposeTS(physical, logical)
-					suite.Less(lastMinTS, minTS)
+					re.Less(lastMinTS, minTS)
 					lastMinTS = minTS
 
 					// Now we check whether the returned ts is the minimum one
@@ -268,9 +277,9 @@ func (suite *tsoClientTestSuite) TestGetMinTS() {
 					// less than the new timestamps of all keyspace groups.
 					for _, client := range suite.clients {
 						physical, logical, err := client.GetTS(suite.ctx)
-						suite.NoError(err)
+						re.NoError(err)
 						ts := tsoutil.ComposeTS(physical, logical)
-						suite.Less(minTS, ts)
+						re.Less(minTS, ts)
 					}
 				}
 			}(client)

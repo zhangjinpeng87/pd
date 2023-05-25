@@ -105,7 +105,7 @@ func NewKeyspaceManager(
 ) *Manager {
 	return &Manager{
 		ctx:               ctx,
-		metaLock:          syncutil.NewLockGroup(syncutil.WithHash(keyspaceIDHash)),
+		metaLock:          syncutil.NewLockGroup(syncutil.WithHash(MaskKeyspaceID)),
 		idAllocator:       idAllocator,
 		store:             store,
 		cluster:           cluster,

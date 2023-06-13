@@ -31,7 +31,6 @@ import (
 )
 
 func TestScheduler(t *testing.T) {
-	t.Skip("skip this super unstable test which impacts everyone's productivity")
 	re := require.New(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -464,12 +463,8 @@ func TestScheduler(t *testing.T) {
 	result := make(map[string]interface{})
 	testutil.Eventually(re, func() bool {
 		mightExec([]string{"-u", pdAddr, "scheduler", "describe", "balance-leader-scheduler"}, &result)
-		return len(result) != 0
-	}, testutil.WithTickInterval(50*time.Millisecond))
-
-	testutil.Eventually(re, func() bool {
-		return result["status"] == "paused" && result["summary"] == ""
-	}, testutil.WithTickInterval(50*time.Millisecond))
+		return len(result) != 0 && result["status"] == "paused" && result["summary"] == ""
+	}, testutil.WithWaitFor(30*time.Second))
 
 	mustUsage([]string{"-u", pdAddr, "scheduler", "resume", "balance-leader-scheduler", "60"})
 	mustExec([]string{"-u", pdAddr, "scheduler", "resume", "balance-leader-scheduler"}, nil)

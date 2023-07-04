@@ -63,6 +63,7 @@ func TestTSOKeyspaceGroupManager(t *testing.T) {
 
 func (suite *tsoKeyspaceGroupManagerTestSuite) SetupSuite() {
 	re := suite.Require()
+	re.NoError(failpoint.Enable("github.com/tikv/pd/pkg/tso/fastGroupSplitPatroller", `return(true)`))
 
 	var err error
 	suite.ctx, suite.cancel = context.WithCancel(context.Background())
@@ -81,6 +82,7 @@ func (suite *tsoKeyspaceGroupManagerTestSuite) TearDownSuite() {
 	suite.cancel()
 	suite.tsoCluster.Destroy()
 	suite.cluster.Destroy()
+	suite.Require().NoError(failpoint.Disable("github.com/tikv/pd/pkg/tso/fastGroupSplitPatroller"))
 }
 
 func (suite *tsoKeyspaceGroupManagerTestSuite) TearDownTest() {
@@ -276,17 +278,15 @@ func (suite *tsoKeyspaceGroupManagerTestSuite) TestTSOKeyspaceGroupSplit() {
 		NewID:     2,
 		Keyspaces: []uint32{222, 333},
 	})
-	kg2 := handlersutil.MustLoadKeyspaceGroupByID(re, suite.pdLeaderServer, 2)
-	re.Equal(uint32(2), kg2.ID)
-	re.Equal([]uint32{222, 333}, kg2.Keyspaces)
-	re.True(kg2.IsSplitTarget())
-	// Check the split TSO from keyspace group 2.
-	var splitTS pdpb.Timestamp
+	// Wait for the split to complete automatically even there is no TSO request from the outside.
 	testutil.Eventually(re, func() bool {
-		splitTS, err = suite.requestTSO(re, 222, 2)
-		return err == nil && tsoutil.CompareTimestamp(&splitTS, &pdpb.Timestamp{}) > 0
+		kg2 := handlersutil.MustLoadKeyspaceGroupByID(re, suite.pdLeaderServer, 2)
+		re.Equal(uint32(2), kg2.ID)
+		re.Equal([]uint32{222, 333}, kg2.Keyspaces)
+		return !kg2.IsSplitting()
 	})
-	splitTS, err = suite.requestTSO(re, 222, 2)
+	// Check the split TSO from keyspace group 2 now.
+	splitTS, err := suite.requestTSO(re, 222, 2)
 	re.NoError(err)
 	re.Greater(tsoutil.CompareTimestamp(&splitTS, &ts), 0)
 }
@@ -356,8 +356,6 @@ func (suite *tsoKeyspaceGroupManagerTestSuite) TestTSOKeyspaceGroupSplitElection
 		return len(member1.GetLeaderListenUrls()) > 0 && len(member2.GetLeaderListenUrls()) > 0
 	})
 	re.Equal(member1.GetLeaderListenUrls(), member2.GetLeaderListenUrls())
-	// Finish the split.
-	handlersutil.MustFinishSplitKeyspaceGroup(re, suite.pdLeaderServer, 2)
 	// Wait for the keyspace groups to finish the split.
 	waitFinishSplit(re, suite.pdLeaderServer, 1, 2, []uint32{111}, []uint32{222, 333})
 }

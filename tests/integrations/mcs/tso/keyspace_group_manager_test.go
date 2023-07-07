@@ -16,8 +16,6 @@ package tso
 
 import (
 	"context"
-	"fmt"
-	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -200,20 +198,10 @@ func (suite *tsoKeyspaceGroupManagerTestSuite) TestKeyspacesServedByNonDefaultKe
 						// Make sure every keyspace group is using the right timestamp path
 						// for loading/saving timestamp from/to etcd and the right primary path
 						// for primary election.
-						var (
-							timestampPath string
-							primaryPath   string
-						)
-						clusterID := strconv.FormatUint(suite.pdLeaderServer.GetClusterID(), 10)
-						if param.keyspaceGroupID == mcsutils.DefaultKeyspaceGroupID {
-							timestampPath = fmt.Sprintf("/pd/%s/timestamp", clusterID)
-							primaryPath = fmt.Sprintf("/ms/%s/tso/00000/primary", clusterID)
-						} else {
-							timestampPath = fmt.Sprintf("/ms/%s/tso/%05d/gta/timestamp",
-								clusterID, param.keyspaceGroupID)
-							primaryPath = fmt.Sprintf("/ms/%s/tso/%s/election/%05d/primary",
-								clusterID, mcsutils.KeyspaceGroupsKey, param.keyspaceGroupID)
-						}
+						clusterID := suite.pdLeaderServer.GetClusterID()
+						rootPath := endpoint.TSOSvcRootPath(clusterID)
+						primaryPath := endpoint.KeyspaceGroupPrimaryPath(rootPath, param.keyspaceGroupID)
+						timestampPath := endpoint.FullTimestampPath(clusterID, param.keyspaceGroupID)
 						re.Equal(timestampPath, am.GetTimestampPath(tsopkg.GlobalDCLocation))
 						re.Equal(primaryPath, am.GetMember().GetLeaderPath())
 

@@ -1343,7 +1343,7 @@ func TestStoreConfigUpdate(t *testing.T) {
         "consistency-check-method": "mvcc",
         "perf-level": 2
     	}}`
-		var config config.StoreConfig
+		var config sc.StoreConfig
 		re.NoError(json.Unmarshal([]byte(body), &config))
 		tc.updateStoreConfig(opt.GetStoreConfig(), &config)
 		re.Equal(uint64(144000000), opt.GetRegionMaxKeys())
@@ -1354,7 +1354,7 @@ func TestStoreConfigUpdate(t *testing.T) {
 	// Case2: empty config.
 	{
 		body := `{}`
-		var config config.StoreConfig
+		var config sc.StoreConfig
 		re.NoError(json.Unmarshal([]byte(body), &config))
 		tc.updateStoreConfig(opt.GetStoreConfig(), &config)
 		re.Equal(uint64(1440000), opt.GetRegionMaxKeys())
@@ -1380,7 +1380,7 @@ func TestStoreConfigUpdate(t *testing.T) {
 		"storage":{
 			"engine":"raft-kv2"
 		}}`
-		var config config.StoreConfig
+		var config sc.StoreConfig
 		re.NoError(json.Unmarshal([]byte(body), &config))
 		tc.updateStoreConfig(opt.GetStoreConfig(), &config)
 		re.Equal(uint64(96), opt.GetRegionBucketSize())
@@ -1400,7 +1400,7 @@ func TestSyncConfigContext(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
 		time.Sleep(time.Second * 100)
-		cfg := &config.StoreConfig{}
+		cfg := &sc.StoreConfig{}
 		b, err := json.Marshal(cfg)
 		if err != nil {
 			res.WriteHeader(http.StatusInternalServerError)
@@ -1458,7 +1458,7 @@ func TestStoreConfigSync(t *testing.T) {
 	re.Empty(opt.GetStoreConfig())
 	err = opt.Reload(tc.GetStorage())
 	re.NoError(err)
-	re.Equal(tc.GetPersistOptions().GetStoreConfig(), opt.GetStoreConfig())
+	re.Equal(tc.GetOpts().(*config.PersistOptions).GetStoreConfig(), opt.GetStoreConfig())
 }
 
 func TestUpdateStorePendingPeerCount(t *testing.T) {
@@ -3089,7 +3089,7 @@ func TestPersistScheduler(t *testing.T) {
 	re.NoError(controller.RemoveScheduler(schedulers.BalanceWitnessName))
 	re.NoError(controller.RemoveScheduler(schedulers.TransferWitnessLeaderName))
 	re.Len(controller.GetSchedulerNames(), defaultCount-3)
-	re.NoError(co.GetCluster().GetPersistOptions().Persist(storage))
+	re.NoError(co.GetCluster().GetSchedulerConfig().Persist(storage))
 	co.Stop()
 	co.GetSchedulersController().Wait()
 	co.GetWaitGroup().Wait()
@@ -3142,12 +3142,12 @@ func TestPersistScheduler(t *testing.T) {
 
 	// the scheduler option should contain 6 items
 	// the `hot scheduler` are disabled
-	re.Len(co.GetCluster().GetPersistOptions().GetSchedulers(), defaultCount+3)
+	re.Len(co.GetCluster().GetSchedulerConfig().(*config.PersistOptions).GetSchedulers(), defaultCount+3)
 	re.NoError(controller.RemoveScheduler(schedulers.GrantLeaderName))
 	// the scheduler that is not enable by default will be completely deleted
-	re.Len(co.GetCluster().GetPersistOptions().GetSchedulers(), defaultCount+2)
+	re.Len(co.GetCluster().GetSchedulerConfig().(*config.PersistOptions).GetSchedulers(), defaultCount+2)
 	re.Len(controller.GetSchedulerNames(), 4)
-	re.NoError(co.GetCluster().GetPersistOptions().Persist(co.GetCluster().GetStorage()))
+	re.NoError(co.GetCluster().GetSchedulerConfig().Persist(co.GetCluster().GetStorage()))
 	co.Stop()
 	co.GetSchedulersController().Wait()
 	co.GetWaitGroup().Wait()
@@ -3204,7 +3204,7 @@ func TestRemoveScheduler(t *testing.T) {
 	re.NoError(err)
 	re.Empty(sches)
 	re.Empty(controller.GetSchedulerNames())
-	re.NoError(co.GetCluster().GetPersistOptions().Persist(co.GetCluster().GetStorage()))
+	re.NoError(co.GetCluster().GetSchedulerConfig().Persist(co.GetCluster().GetStorage()))
 	co.Stop()
 	co.GetSchedulersController().Wait()
 	co.GetWaitGroup().Wait()
@@ -3218,7 +3218,7 @@ func TestRemoveScheduler(t *testing.T) {
 	co.Run()
 	re.Empty(controller.GetSchedulerNames())
 	// the option remains default scheduler
-	re.Len(co.GetCluster().GetPersistOptions().GetSchedulers(), defaultCount)
+	re.Len(co.GetCluster().GetSchedulerConfig().(*config.PersistOptions).GetSchedulers(), defaultCount)
 	co.Stop()
 	co.GetSchedulersController().Wait()
 	co.GetWaitGroup().Wait()

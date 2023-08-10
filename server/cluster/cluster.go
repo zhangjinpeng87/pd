@@ -261,11 +261,11 @@ func (c *RaftCluster) loadBootstrapTime() (time.Time, error) {
 // InitCluster initializes the raft cluster.
 func (c *RaftCluster) InitCluster(
 	id id.Allocator,
-	opt *config.PersistOptions,
+	opt sc.ConfProvider,
 	storage storage.Storage,
 	basicCluster *core.BasicCluster,
 	keyspaceGroupManager *keyspace.GroupManager) {
-	c.core, c.opt, c.storage, c.id = basicCluster, opt, storage, id
+	c.core, c.opt, c.storage, c.id = basicCluster, opt.(*config.PersistOptions), storage, id
 	c.ctx, c.cancel = context.WithCancel(c.serverCtx)
 	c.labelLevelStats = statistics.NewLabelStatistics()
 	c.hotStat = statistics.NewHotStat(c.ctx)
@@ -506,19 +506,19 @@ func (c *RaftCluster) observeStoreConfig(ctx context.Context, address string) (b
 }
 
 // updateStoreConfig updates the store config. This is extracted for testing.
-func (c *RaftCluster) updateStoreConfig(oldCfg, cfg *config.StoreConfig) (bool, error) {
+func (c *RaftCluster) updateStoreConfig(oldCfg, cfg *sc.StoreConfig) (bool, error) {
 	cfg.Adjust()
 	c.opt.SetStoreConfig(cfg)
-	return oldCfg.Storage.Engine != config.RaftstoreV2 && cfg.Storage.Engine == config.RaftstoreV2, nil
+	return oldCfg.Storage.Engine != sc.RaftstoreV2 && cfg.Storage.Engine == sc.RaftstoreV2, nil
 }
 
 // fetchStoreConfigFromTiKV tries to fetch the config from the TiKV store URL.
-func (c *RaftCluster) fetchStoreConfigFromTiKV(ctx context.Context, statusAddress string) (*config.StoreConfig, error) {
-	cfg := &config.StoreConfig{}
+func (c *RaftCluster) fetchStoreConfigFromTiKV(ctx context.Context, statusAddress string) (*sc.StoreConfig, error) {
+	cfg := &sc.StoreConfig{}
 	failpoint.Inject("mockFetchStoreConfigFromTiKV", func(val failpoint.Value) {
 		if regionMaxSize, ok := val.(string); ok {
 			cfg.RegionMaxSize = regionMaxSize
-			cfg.Storage.Engine = config.RaftstoreV2
+			cfg.Storage.Engine = sc.RaftstoreV2
 		}
 		failpoint.Return(cfg, nil)
 	})
@@ -836,11 +836,6 @@ func (c *RaftCluster) GetOpts() sc.ConfProvider {
 	return c.opt
 }
 
-// GetPersistOptions returns cluster's configuration.
-func (c *RaftCluster) GetPersistOptions() *config.PersistOptions {
-	return c.opt
-}
-
 // GetScheduleConfig returns scheduling configurations.
 func (c *RaftCluster) GetScheduleConfig() *sc.ScheduleConfig {
 	return c.opt.GetScheduleConfig()
@@ -1064,7 +1059,7 @@ func (c *RaftCluster) processRegionHeartbeat(region *core.RegionInfo) error {
 	if err != nil {
 		return err
 	}
-	region.Inherit(origin, c.GetPersistOptions().GetStoreConfig().IsEnableRegionBucket())
+	region.Inherit(origin, c.GetStoreConfig().IsEnableRegionBucket())
 
 	c.hotStat.CheckWriteAsync(statistics.NewCheckExpiredItemTask(region))
 	c.hotStat.CheckReadAsync(statistics.NewCheckExpiredItemTask(region))

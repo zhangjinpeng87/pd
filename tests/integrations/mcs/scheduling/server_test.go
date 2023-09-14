@@ -20,9 +20,12 @@ import (
 	"time"
 
 	"github.com/pingcap/failpoint"
+	"github.com/pingcap/kvproto/pkg/metapb"
+	"github.com/pingcap/kvproto/pkg/pdpb"
 	"github.com/stretchr/testify/suite"
 	mcs "github.com/tikv/pd/pkg/mcs/utils"
 	"github.com/tikv/pd/pkg/utils/testutil"
+	"github.com/tikv/pd/server"
 	"github.com/tikv/pd/tests"
 	"go.uber.org/goleak"
 )
@@ -93,8 +96,10 @@ func (suite *serverTestSuite) TestAllocIDAfterLeaderChange() {
 	re.NoError(err)
 	re.NotEqual(uint64(0), id)
 	suite.cluster.ResignLeader()
-	suite.cluster.WaitLeader()
-	time.Sleep(200 * time.Millisecond)
+	leaderName := suite.cluster.WaitLeader()
+	suite.pdLeader = suite.cluster.GetServer(leaderName)
+	suite.backendEndpoints = suite.pdLeader.GetAddr()
+	time.Sleep(time.Second)
 	id1, err := cluster.AllocID()
 	re.NoError(err)
 	re.Greater(id1, id)
@@ -124,5 +129,56 @@ func (suite *serverTestSuite) TestPrimaryChange() {
 	testutil.Eventually(re, func() bool {
 		watchedAddr, ok := suite.pdLeader.GetServicePrimaryAddr(suite.ctx, mcs.SchedulingServiceName)
 		return ok && newPrimaryAddr == watchedAddr
+	})
+}
+
+func (suite *serverTestSuite) TestForwardStoreHeartbeat() {
+	re := suite.Require()
+	tc, err := tests.NewTestSchedulingCluster(suite.ctx, 1, suite.backendEndpoints)
+	re.NoError(err)
+	defer tc.Destroy()
+	tc.WaitForPrimaryServing(re)
+
+	s := &server.GrpcServer{Server: suite.pdLeader.GetServer()}
+	resp, err := s.PutStore(
+		context.Background(), &pdpb.PutStoreRequest{
+			Header: &pdpb.RequestHeader{ClusterId: suite.pdLeader.GetClusterID()},
+			Store: &metapb.Store{
+				Id:      1,
+				Address: "tikv1",
+				State:   metapb.StoreState_Up,
+				Version: "7.0.0",
+			},
+		},
+	)
+	re.NoError(err)
+	re.Empty(resp.GetHeader().GetError())
+
+	resp1, err := s.StoreHeartbeat(
+		context.Background(), &pdpb.StoreHeartbeatRequest{
+			Header: &pdpb.RequestHeader{ClusterId: suite.pdLeader.GetClusterID()},
+			Stats: &pdpb.StoreStats{
+				StoreId:      1,
+				Capacity:     1798985089024,
+				Available:    1709868695552,
+				UsedSize:     85150956358,
+				KeysWritten:  20000,
+				BytesWritten: 199,
+				KeysRead:     10000,
+				BytesRead:    99,
+			},
+		},
+	)
+	re.NoError(err)
+	re.Empty(resp1.GetHeader().GetError())
+	testutil.Eventually(re, func() bool {
+		store := tc.GetPrimaryServer().GetCluster().GetStore(1)
+		return store.GetStoreStats().GetCapacity() == uint64(1798985089024) &&
+			store.GetStoreStats().GetAvailable() == uint64(1709868695552) &&
+			store.GetStoreStats().GetUsedSize() == uint64(85150956358) &&
+			store.GetStoreStats().GetKeysWritten() == uint64(20000) &&
+			store.GetStoreStats().GetBytesWritten() == uint64(199) &&
+			store.GetStoreStats().GetKeysRead() == uint64(10000) &&
+			store.GetStoreStats().GetBytesRead() == uint64(99)
 	})
 }

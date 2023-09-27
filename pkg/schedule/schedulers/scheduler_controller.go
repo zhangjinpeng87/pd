@@ -138,6 +138,10 @@ func (c *Controller) AddSchedulerHandler(scheduler Scheduler, args ...string) er
 	}
 
 	c.schedulerHandlers[name] = scheduler
+	if err := SaveSchedulerConfig(c.storage, scheduler); err != nil {
+		log.Error("can not save HTTP scheduler config", zap.String("scheduler-name", scheduler.GetName()), errs.ZapError(err))
+		return err
+	}
 	c.cluster.GetSchedulerConfig().AddSchedulerCfg(scheduler.GetType(), args)
 	return nil
 }
@@ -188,6 +192,10 @@ func (c *Controller) AddScheduler(scheduler Scheduler, args ...string) error {
 	c.wg.Add(1)
 	go c.runScheduler(s)
 	c.schedulers[s.Scheduler.GetName()] = s
+	if err := SaveSchedulerConfig(c.storage, scheduler); err != nil {
+		log.Error("can not save scheduler config", zap.String("scheduler-name", scheduler.GetName()), errs.ZapError(err))
+		return err
+	}
 	c.cluster.GetSchedulerConfig().AddSchedulerCfg(s.Scheduler.GetType(), args)
 	return nil
 }

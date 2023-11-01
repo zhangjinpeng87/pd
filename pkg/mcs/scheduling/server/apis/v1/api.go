@@ -31,6 +31,7 @@ import (
 	sche "github.com/tikv/pd/pkg/schedule/core"
 	"github.com/tikv/pd/pkg/schedule/handler"
 	"github.com/tikv/pd/pkg/schedule/operator"
+	"github.com/tikv/pd/pkg/schedule/schedulers"
 	"github.com/tikv/pd/pkg/statistics/utils"
 	"github.com/tikv/pd/pkg/storage"
 	"github.com/tikv/pd/pkg/utils/apiutil"
@@ -130,6 +131,8 @@ func (s *Service) RegisterSchedulersRouter() {
 	router := s.root.Group("schedulers")
 	router.GET("", getSchedulers)
 	router.GET("/diagnostic/:name", getDiagnosticResult)
+	router.GET("/config", getSchedulerConfig)
+	router.GET("/config/:name/list", getSchedulerConfigByName)
 	// TODO: in the future, we should split pauseOrResumeScheduler to two different APIs.
 	// And we need to do one-to-two forwarding in the API middleware.
 	router.POST("/:name", pauseOrResumeScheduler)
@@ -430,6 +433,60 @@ func getSchedulers(c *gin.Context) {
 		return
 	}
 	c.IndentedJSON(http.StatusOK, output)
+}
+
+// @Tags     schedulers
+// @Summary  List all scheduler configs.
+// @Produce  json
+// @Success  200  {object}  map[string]interface{}
+// @Failure  500  {string}  string  "PD server failed to proceed the request."
+// @Router   /schedulers/config/ [get]
+func getSchedulerConfig(c *gin.Context) {
+	handler := c.MustGet(handlerKey).(*handler.Handler)
+	sc, err := handler.GetSchedulersController()
+	if err != nil {
+		c.String(http.StatusInternalServerError, err.Error())
+		return
+	}
+	sches, configs, err := sc.GetAllSchedulerConfigs()
+	if err != nil {
+		c.String(http.StatusInternalServerError, err.Error())
+		return
+	}
+	c.IndentedJSON(http.StatusOK, schedulers.ToPayload(sches, configs))
+}
+
+// @Tags     schedulers
+// @Summary  List scheduler config by name.
+// @Produce  json
+// @Success  200  {object}  map[string]interface{}
+// @Failure  404  {string}  string  scheduler not found
+// @Failure  500  {string}  string  "PD server failed to proceed the request."
+// @Router   /schedulers/config/{name}/list [get]
+func getSchedulerConfigByName(c *gin.Context) {
+	handler := c.MustGet(handlerKey).(*handler.Handler)
+	sc, err := handler.GetSchedulersController()
+	if err != nil {
+		c.String(http.StatusInternalServerError, err.Error())
+		return
+	}
+	handlers := sc.GetSchedulerHandlers()
+	name := c.Param("name")
+	if _, ok := handlers[name]; !ok {
+		c.String(http.StatusNotFound, errs.ErrSchedulerNotFound.GenWithStackByArgs().Error())
+		return
+	}
+	isDisabled, err := sc.IsSchedulerDisabled(name)
+	if err != nil {
+		c.String(http.StatusInternalServerError, err.Error())
+		return
+	}
+	if isDisabled {
+		c.String(http.StatusNotFound, errs.ErrSchedulerNotFound.GenWithStackByArgs().Error())
+		return
+	}
+	c.Request.URL.Path = "/list"
+	handlers[name].ServeHTTP(c.Writer, c.Request)
 }
 
 // @Tags     schedulers

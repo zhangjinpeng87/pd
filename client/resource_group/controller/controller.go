@@ -1265,7 +1265,7 @@ func (gc *groupCostController) onRequestWait(
 	*gc.mu.storeCounter[info.StoreID()] = *gc.mu.globalCounter
 	gc.mu.Unlock()
 
-	return delta, penalty, waitDuration, gc.meta.Priority, nil
+	return delta, penalty, waitDuration, gc.getMeta().GetPriority(), nil
 }
 
 func (gc *groupCostController) onResponse(

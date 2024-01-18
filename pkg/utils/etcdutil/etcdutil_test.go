@@ -380,7 +380,8 @@ func (suite *loopWatcherTestSuite) SetupSuite() {
 	suite.ctx, suite.cancel = context.WithCancel(context.Background())
 	suite.cleans = make([]func(), 0)
 	// Start a etcd server and create a client with etcd1 as endpoint.
-	suite.config = newTestSingleConfig(suite.T())
+	suite.config = NewTestSingleConfig()
+	suite.config.Dir = suite.T().TempDir()
 	suite.startEtcd(re)
 	suite.client, err = CreateEtcdClient(nil, suite.config.LCUrls)
 	re.NoError(err)
@@ -397,7 +398,7 @@ func (suite *loopWatcherTestSuite) TearDownSuite() {
 	}
 }
 
-func (suite *loopWatcherTestSuite) TestLoadWithoutKey() {
+func (suite *loopWatcherTestSuite) TestLoadNoExistedKey() {
 	re := suite.Require()
 	cache := make(map[string]struct{})
 	watcher := NewLoopWatcher(
@@ -405,7 +406,7 @@ func (suite *loopWatcherTestSuite) TestLoadWithoutKey() {
 		&suite.wg,
 		suite.client,
 		"test",
-		"TestLoadWithoutKey",
+		"TestLoadNoExistedKey",
 		func([]*clientv3.Event) error { return nil },
 		func(kv *mvccpb.KeyValue) error {
 			cache[string(kv.Key)] = struct{}{}
@@ -419,6 +420,35 @@ func (suite *loopWatcherTestSuite) TestLoadWithoutKey() {
 	err := watcher.WaitLoad()
 	re.NoError(err) // although no key, watcher returns no error
 	re.Empty(cache)
+}
+
+func (suite *loopWatcherTestSuite) TestLoadWithLimitChange() {
+	re := suite.Require()
+	re.NoError(failpoint.Enable("github.com/tikv/pd/pkg/utils/etcdutil/meetEtcdError", `return()`))
+	cache := make(map[string]struct{})
+	for i := 0; i < int(maxLoadBatchSize)*2; i++ {
+		suite.put(re, fmt.Sprintf("TestLoadWithLimitChange%d", i), "")
+	}
+	watcher := NewLoopWatcher(
+		suite.ctx,
+		&suite.wg,
+		suite.client,
+		"test",
+		"TestLoadWithLimitChange",
+		func([]*clientv3.Event) error { return nil },
+		func(kv *mvccpb.KeyValue) error {
+			cache[string(kv.Key)] = struct{}{}
+			return nil
+		},
+		func(kv *mvccpb.KeyValue) error { return nil },
+		func([]*clientv3.Event) error { return nil },
+		true, /* withPrefix */
+	)
+	watcher.StartWatchLoop()
+	err := watcher.WaitLoad()
+	re.NoError(err)
+	re.Len(cache, int(maxLoadBatchSize)*2)
+	re.NoError(failpoint.Disable("github.com/tikv/pd/pkg/utils/etcdutil/meetEtcdError"))
 }
 
 func (suite *loopWatcherTestSuite) TestCallBack() {
@@ -523,8 +553,8 @@ func (suite *loopWatcherTestSuite) TestWatcherLoadLimit() {
 
 func (suite *loopWatcherTestSuite) TestWatcherLoadLargeKey() {
 	re := suite.Require()
-	// use default limit to test 16384 key in etcd
-	count := 16384
+	// use default limit to test 65536 key in etcd
+	count := 65536
 	ctx, cancel := context.WithCancel(suite.ctx)
 	defer cancel()
 	for i := 0; i < count; i++ {

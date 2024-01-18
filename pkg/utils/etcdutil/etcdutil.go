@@ -21,6 +21,7 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -39,6 +40,7 @@ import (
 	"go.etcd.io/etcd/mvcc/mvccpb"
 	"go.etcd.io/etcd/pkg/types"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
 )
 
 const (
@@ -579,10 +581,10 @@ func InitOrGetClusterID(c *clientv3.Client, key string) (uint64, error) {
 }
 
 const (
-	defaultLoadDataFromEtcdTimeout = 5 * time.Minute
-	defaultEtcdRetryInterval       = time.Second
-	defaultLoadFromEtcdRetryTimes  = 3
-	defaultLoadBatchSize           = 400
+	defaultEtcdRetryInterval      = time.Second
+	defaultLoadFromEtcdRetryTimes = 3
+	maxLoadBatchSize              = int64(10000)
+	minLoadBatchSize              = int64(100)
 
 	// RequestProgressInterval is the interval to call RequestProgress for watcher.
 	RequestProgressInterval = 1 * time.Second
@@ -621,8 +623,6 @@ type LoopWatcher struct {
 	// lastTimeForceLoad is used to record the last time force loading data from etcd.
 	lastTimeForceLoad time.Time
 
-	// loadTimeout is used to set the timeout for loading data from etcd.
-	loadTimeout time.Duration
 	// loadRetryTimes is used to set the retry times for loading data from etcd.
 	loadRetryTimes int
 	// loadBatchSize is used to set the batch size for loading data from etcd.
@@ -659,9 +659,8 @@ func NewLoopWatcher(
 		preEventsFn:              preEventsFn,
 		isWithPrefix:             isWithPrefix,
 		lastTimeForceLoad:        time.Now(),
-		loadTimeout:              defaultLoadDataFromEtcdTimeout,
 		loadRetryTimes:           defaultLoadFromEtcdRetryTimes,
-		loadBatchSize:            defaultLoadBatchSize,
+		loadBatchSize:            maxLoadBatchSize,
 		watchChangeRetryInterval: defaultEtcdRetryInterval,
 	}
 }
@@ -878,21 +877,10 @@ func (lw *LoopWatcher) watch(ctx context.Context, revision int64) (nextRevision 
 }
 
 func (lw *LoopWatcher) load(ctx context.Context) (nextRevision int64, err error) {
-	ctx, cancel := context.WithTimeout(ctx, lw.loadTimeout)
-	defer cancel()
-	failpoint.Inject("delayLoad", func(val failpoint.Value) {
-		if sleepIntervalSeconds, ok := val.(int); ok && sleepIntervalSeconds > 0 {
-			time.Sleep(time.Duration(sleepIntervalSeconds) * time.Second)
-		}
-	})
-
 	startKey := lw.key
-	// If limit is 0, it means no limit.
-	// If limit is not 0, we need to add 1 to limit to get the next key.
 	limit := lw.loadBatchSize
-	if limit != 0 {
-		limit++
-	}
+	opts := lw.buildLoadingOpts(limit)
+
 	if err := lw.preEventsFn([]*clientv3.Event{}); err != nil {
 		log.Error("run pre event failed in watch loop", zap.String("name", lw.name),
 			zap.String("key", lw.key), zap.Error(err))
@@ -904,32 +892,42 @@ func (lw *LoopWatcher) load(ctx context.Context) (nextRevision int64, err error)
 		}
 	}()
 
-	// In most cases, 'Get(foo, WithPrefix())' is equivalent to 'Get(foo, WithRange(GetPrefixRangeEnd(foo))'.
-	// However, when the startKey changes, the two are no longer equivalent.
-	// For example, the end key for 'WithRange(GetPrefixRangeEnd(foo))' is consistently 'fop'.
-	// But when using 'Get(foo1, WithPrefix())', the end key becomes 'foo2', not 'fop'.
-	// So, we use 'WithRange()' to avoid this problem.
-	opts := []clientv3.OpOption{
-		clientv3.WithSort(clientv3.SortByKey, clientv3.SortAscend),
-		clientv3.WithLimit(limit)}
-	if lw.isWithPrefix {
-		opts = append(opts, clientv3.WithRange(clientv3.GetPrefixRangeEnd(startKey)))
-	}
-
 	for {
-		// Sort by key to get the next key and we don't need to worry about the performance,
-		// Because the default sort is just SortByKey and SortAscend
-		resp, err := clientv3.NewKV(lw.client).Get(ctx, startKey, opts...)
+		select {
+		case <-ctx.Done():
+			return 0, nil
+		default:
+		}
+		resp, err := EtcdKVGet(lw.client, startKey, opts...)
+		failpoint.Inject("meetEtcdError", func() {
+			if limit > minLoadBatchSize {
+				err = errors.New(codes.ResourceExhausted.String())
+			}
+		})
 		if err != nil {
 			log.Error("load failed in watch loop", zap.String("name", lw.name),
 				zap.String("key", lw.key), zap.Error(err))
+			if strings.Contains(err.Error(), codes.ResourceExhausted.String()) ||
+				strings.Contains(err.Error(), codes.DeadlineExceeded.String()) {
+				if limit == 0 {
+					limit = maxLoadBatchSize
+				} else if limit > minLoadBatchSize {
+					limit /= 2
+				} else {
+					return 0, err
+				}
+				opts = lw.buildLoadingOpts(limit)
+				continue
+			}
 			return 0, err
 		}
 		for i, item := range resp.Kvs {
-			if resp.More && i == len(resp.Kvs)-1 {
-				// The last key is the start key of the next batch.
-				// To avoid to get the same key in the next load, we need to skip the last key.
+			if i == len(resp.Kvs)-1 && resp.More {
+				// If there are more keys, we need to load the next batch.
+				// The last key in current batch is the start key of the next batch.
 				startKey = string(item.Key)
+				// To avoid to get the same key in the next batch,
+				// we need to skip the last key for the current batch.
 				continue
 			}
 			err = lw.putFn(item)
@@ -946,6 +944,27 @@ func (lw *LoopWatcher) load(ctx context.Context) (nextRevision int64, err error)
 			return resp.Header.Revision + 1, err
 		}
 	}
+}
+
+func (lw *LoopWatcher) buildLoadingOpts(limit int64) []clientv3.OpOption {
+	// Sort by key to get the next key and we don't need to worry about the performance,
+	// Because the default sort is just SortByKey and SortAscend
+	opts := []clientv3.OpOption{
+		clientv3.WithSort(clientv3.SortByKey, clientv3.SortAscend)}
+	// In most cases, 'Get(foo, WithPrefix())' is equivalent to 'Get(foo, WithRange(GetPrefixRangeEnd(foo))'.
+	// However, when the startKey changes, the two are no longer equivalent.
+	// For example, the end key for 'WithRange(GetPrefixRangeEnd(foo))' is consistently 'fop'.
+	// But when using 'Get(foo1, WithPrefix())', the end key becomes 'foo2', not 'fop'.
+	// So, we use 'WithRange()' to avoid this problem.
+	if lw.isWithPrefix {
+		opts = append(opts, clientv3.WithRange(clientv3.GetPrefixRangeEnd(lw.key)))
+	}
+	// If limit is 0, it means no limit.
+	// If limit is not 0, we need to add 1 to limit to get the next key.
+	if limit == 0 {
+		return opts
+	}
+	return append(opts, clientv3.WithLimit(limit+1))
 }
 
 // ForceLoad forces to load the key.
@@ -983,11 +1002,6 @@ func (lw *LoopWatcher) WaitLoad() error {
 // SetLoadRetryTimes sets the retry times when loading data from etcd.
 func (lw *LoopWatcher) SetLoadRetryTimes(times int) {
 	lw.loadRetryTimes = times
-}
-
-// SetLoadTimeout sets the timeout when loading data from etcd.
-func (lw *LoopWatcher) SetLoadTimeout(timeout time.Duration) {
-	lw.loadTimeout = timeout
 }
 
 // SetLoadBatchSize sets the batch size when loading data from etcd.

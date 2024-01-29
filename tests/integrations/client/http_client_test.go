@@ -508,6 +508,12 @@ func (suite *httpClientTestSuite) checkConfig(mode mode, client pd.Client) {
 	resp, err := env.cluster.GetEtcdClient().Get(env.ctx, sc.TTLConfigPrefix+"/schedule.leader-schedule-limit")
 	re.NoError(err)
 	re.Equal([]byte("16"), resp.Kvs[0].Value)
+	// delete the config with TTL.
+	err = client.SetConfig(env.ctx, newConfig, 0)
+	re.NoError(err)
+	resp, err = env.cluster.GetEtcdClient().Get(env.ctx, sc.TTLConfigPrefix+"/schedule.leader-schedule-limit")
+	re.NoError(err)
+	re.Empty(resp.Kvs)
 }
 
 func (suite *httpClientTestSuite) TestScheduleConfig() {
@@ -520,14 +526,14 @@ func (suite *httpClientTestSuite) checkScheduleConfig(mode mode, client pd.Clien
 
 	config, err := client.GetScheduleConfig(env.ctx)
 	re.NoError(err)
-	re.Equal(float64(4), config["leader-schedule-limit"])
+	re.Equal(float64(4), config["hot-region-schedule-limit"])
 	re.Equal(float64(2048), config["region-schedule-limit"])
-	config["leader-schedule-limit"] = float64(8)
+	config["hot-region-schedule-limit"] = float64(8)
 	err = client.SetScheduleConfig(env.ctx, config)
 	re.NoError(err)
 	config, err = client.GetScheduleConfig(env.ctx)
 	re.NoError(err)
-	re.Equal(float64(8), config["leader-schedule-limit"])
+	re.Equal(float64(8), config["hot-region-schedule-limit"])
 	re.Equal(float64(2048), config["region-schedule-limit"])
 }
 

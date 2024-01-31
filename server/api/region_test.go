@@ -80,7 +80,7 @@ func (suite *regionTestSuite) TestRegion() {
 	mustRegionHeartbeat(re, suite.svr, r)
 	url := fmt.Sprintf("%s/region/id/%d", suite.urlPrefix, r.GetID())
 	r1 := &response.RegionInfo{}
-	r1m := make(map[string]interface{})
+	r1m := make(map[string]any)
 	re.NoError(tu.ReadGetJSON(re, testDialClient, url, r1))
 	r1.Adjust()
 	re.Equal(response.NewAPIRegionInfo(r), r1)
@@ -89,7 +89,7 @@ func (suite *regionTestSuite) TestRegion() {
 	re.Equal(float64(r.GetKeysWritten()), r1m["written_keys"].(float64))
 	re.Equal(float64(r.GetBytesRead()), r1m["read_bytes"].(float64))
 	re.Equal(float64(r.GetKeysRead()), r1m["read_keys"].(float64))
-	keys := r1m["buckets"].([]interface{})
+	keys := r1m["buckets"].([]any)
 	re.Len(keys, 2)
 	re.Equal(core.HexRegionKeyStr([]byte("a")), keys[0].(string))
 	re.Equal(core.HexRegionKeyStr([]byte("b")), keys[1].(string))

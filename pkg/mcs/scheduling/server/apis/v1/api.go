@@ -434,7 +434,7 @@ func getOperatorRecords(c *gin.Context) {
 // @Router   /operators [post]
 func createOperator(c *gin.Context) {
 	handler := c.MustGet(handlerKey).(*handler.Handler)
-	var input map[string]interface{}
+	var input map[string]any
 	if err := c.BindJSON(&input); err != nil {
 		c.String(http.StatusBadRequest, err.Error())
 		return
@@ -530,7 +530,7 @@ func getSchedulers(c *gin.Context) {
 // @Tags     schedulers
 // @Summary  List all scheduler configs.
 // @Produce  json
-// @Success  200  {object}  map[string]interface{}
+// @Success  200  {object}  map[string]any
 // @Failure  500  {string}  string  "PD server failed to proceed the request."
 // @Router   /schedulers/config/ [get]
 func getSchedulerConfig(c *gin.Context) {
@@ -551,7 +551,7 @@ func getSchedulerConfig(c *gin.Context) {
 // @Tags     schedulers
 // @Summary  List scheduler config by name.
 // @Produce  json
-// @Success  200  {object}  map[string]interface{}
+// @Success  200  {object}  map[string]any
 // @Failure  404  {string}  string  scheduler not found
 // @Failure  500  {string}  string  "PD server failed to proceed the request."
 // @Router   /schedulers/config/{name}/list [get]
@@ -1171,7 +1171,7 @@ func getRegionLabelRuleByID(c *gin.Context) {
 func accelerateRegionsScheduleInRange(c *gin.Context) {
 	handler := c.MustGet(handlerKey).(*handler.Handler)
 
-	var input map[string]interface{}
+	var input map[string]any
 	if err := c.BindJSON(&input); err != nil {
 		c.String(http.StatusBadRequest, err.Error())
 		return
@@ -1211,7 +1211,7 @@ func accelerateRegionsScheduleInRange(c *gin.Context) {
 func accelerateRegionsScheduleInRanges(c *gin.Context) {
 	handler := c.MustGet(handlerKey).(*handler.Handler)
 
-	var input []map[string]interface{}
+	var input []map[string]any
 	if err := c.BindJSON(&input); err != nil {
 		c.String(http.StatusBadRequest, err.Error())
 		return
@@ -1262,7 +1262,7 @@ func accelerateRegionsScheduleInRanges(c *gin.Context) {
 func scatterRegions(c *gin.Context) {
 	handler := c.MustGet(handlerKey).(*handler.Handler)
 
-	var input map[string]interface{}
+	var input map[string]any
 	if err := c.BindJSON(&input); err != nil {
 		c.String(http.StatusBadRequest, err.Error())
 		return
@@ -1305,7 +1305,7 @@ func scatterRegions(c *gin.Context) {
 func splitRegions(c *gin.Context) {
 	handler := c.MustGet(handlerKey).(*handler.Handler)
 
-	var input map[string]interface{}
+	var input map[string]any
 	if err := c.BindJSON(&input); err != nil {
 		c.String(http.StatusBadRequest, err.Error())
 		return
@@ -1315,7 +1315,7 @@ func splitRegions(c *gin.Context) {
 		c.String(http.StatusBadRequest, "split_keys should be provided.")
 		return
 	}
-	rawSplitKeys := s.([]interface{})
+	rawSplitKeys := s.([]any)
 	if len(rawSplitKeys) < 1 {
 		c.String(http.StatusBadRequest, "empty split keys.")
 		return

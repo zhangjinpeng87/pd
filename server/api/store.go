@@ -258,7 +258,7 @@ func (h *storeHandler) SetStoreWeight(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var input map[string]interface{}
+	var input map[string]any
 	if err := apiutil.ReadJSONRespondError(h.rd, w, r.Body, &input); err != nil {
 		return
 	}
@@ -318,7 +318,7 @@ func (h *storeHandler) SetStoreLimit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var input map[string]interface{}
+	var input map[string]any
 	if err := apiutil.ReadJSONRespondError(h.rd, w, r.Body, &input); err != nil {
 		return
 	}
@@ -405,7 +405,7 @@ func (h *storesHandler) RemoveTombStone(w http.ResponseWriter, r *http.Request) 
 // @Failure  500  {string}  string  "PD server failed to proceed the request."
 // @Router   /stores/limit [post]
 func (h *storesHandler) SetAllStoresLimit(w http.ResponseWriter, r *http.Request) {
-	var input map[string]interface{}
+	var input map[string]any
 	if err := apiutil.ReadJSONRespondError(h.rd, w, r.Body, &input); err != nil {
 		return
 	}
@@ -452,7 +452,7 @@ func (h *storesHandler) SetAllStoresLimit(w http.ResponseWriter, r *http.Request
 			}
 		}
 	} else {
-		labelMap := input["labels"].(map[string]interface{})
+		labelMap := input["labels"].(map[string]any)
 		labels := make([]*metapb.StoreLabel, 0, len(input))
 		for k, v := range labelMap {
 			labels = append(labels, &metapb.StoreLabel{
@@ -744,7 +744,7 @@ func (filter *storeStateFilter) filter(stores []*metapb.Store) []*metapb.Store {
 	return ret
 }
 
-func getStoreLimitType(input map[string]interface{}) ([]storelimit.Type, error) {
+func getStoreLimitType(input map[string]any) ([]storelimit.Type, error) {
 	typeNameIface, ok := input["type"]
 	var err error
 	if ok {

@@ -146,7 +146,7 @@ func (checker *healthChecker) inspector(ctx context.Context) {
 }
 
 func (checker *healthChecker) close() {
-	checker.healthyClients.Range(func(key, value interface{}) bool {
+	checker.healthyClients.Range(func(key, value any) bool {
 		healthyCli := value.(*healthyClient)
 		healthyCli.healthState.Set(0)
 		healthyCli.Client.Close()
@@ -172,9 +172,9 @@ func (checker *healthChecker) patrol(ctx context.Context) ([]string, []string, b
 		probeCh = make(chan healthProbe, count)
 		wg      sync.WaitGroup
 	)
-	checker.healthyClients.Range(func(key, value interface{}) bool {
+	checker.healthyClients.Range(func(key, value any) bool {
 		wg.Add(1)
-		go func(key, value interface{}) {
+		go func(key, value any) {
 			defer wg.Done()
 			defer logutil.LogPanic()
 			var (
@@ -274,7 +274,7 @@ func (checker *healthChecker) updateEvictedEps(lastEps, pickedEps []string) {
 		pickedSet[ep] = true
 	}
 	// Reset the count to 0 if it's in evictedEps but not in the pickedEps.
-	checker.evictedEps.Range(func(key, _ interface{}) bool {
+	checker.evictedEps.Range(func(key, _ any) bool {
 		ep := key.(string)
 		if !pickedSet[ep] {
 			checker.evictedEps.Store(ep, 0)
@@ -380,7 +380,7 @@ func (checker *healthChecker) update() {
 		}
 	}
 	// Clean up the stale clients which are not in the etcd cluster anymore.
-	checker.healthyClients.Range(func(key, value interface{}) bool {
+	checker.healthyClients.Range(func(key, value any) bool {
 		ep := key.(string)
 		if _, ok := epMap[ep]; !ok {
 			log.Info("remove stale etcd client",
@@ -394,7 +394,7 @@ func (checker *healthChecker) update() {
 
 func (checker *healthChecker) clientCount() int {
 	count := 0
-	checker.healthyClients.Range(func(_, _ interface{}) bool {
+	checker.healthyClients.Range(func(_, _ any) bool {
 		count++
 		return true
 	})

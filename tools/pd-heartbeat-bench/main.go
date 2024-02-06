@@ -316,7 +316,7 @@ func (rs *Regions) update(cfg *config.Config, options *config.Options) {
 	rs.awakenRegions.Store(awakenRegions)
 }
 
-func createHeartbeatStream(ctx context.Context, cfg *config.Config) pdpb.PD_RegionHeartbeatClient {
+func createHeartbeatStream(ctx context.Context, cfg *config.Config) (pdpb.PDClient, pdpb.PD_RegionHeartbeatClient) {
 	cli, err := newClient(ctx, cfg)
 	if err != nil {
 		log.Fatal("create client error", zap.Error(err))
@@ -332,7 +332,7 @@ func createHeartbeatStream(ctx context.Context, cfg *config.Config) pdpb.PD_Regi
 			stream.Recv()
 		}
 	}()
-	return stream
+	return cli, stream
 }
 
 func (rs *Regions) handleRegionHeartbeat(wg *sync.WaitGroup, stream pdpb.PD_RegionHeartbeatClient, storeID uint64, rep report.Report) {
@@ -507,14 +507,20 @@ func main() {
 	bootstrap(ctx, cli)
 	putStores(ctx, cfg, cli, stores)
 	log.Info("finish put stores")
+	clis := make(map[uint64]pdpb.PDClient, cfg.StoreCount)
 	httpCli := pdHttp.NewClient("tools-heartbeat-bench", []string{cfg.PDAddr}, pdHttp.WithTLSConfig(loadTLSConfig(cfg)))
 	go deleteOperators(ctx, httpCli)
 	streams := make(map[uint64]pdpb.PD_RegionHeartbeatClient, cfg.StoreCount)
 	for i := 1; i <= cfg.StoreCount; i++ {
-		streams[uint64(i)] = createHeartbeatStream(ctx, cfg)
+		clis[uint64(i)], streams[uint64(i)] = createHeartbeatStream(ctx, cfg)
+	}
+	header := &pdpb.RequestHeader{
+		ClusterId: clusterID,
 	}
 	var heartbeatTicker = time.NewTicker(regionReportInterval * time.Second)
 	defer heartbeatTicker.Stop()
+	var resolvedTSTicker = time.NewTicker(time.Second)
+	defer resolvedTSTicker.Stop()
 	for {
 		select {
 		case <-heartbeatTicker.C:
@@ -547,6 +553,26 @@ func main() {
 			log.Info("store heartbeat stats", zap.String("max", fmt.Sprintf("%.4fs", since)))
 			regions.update(cfg, options)
 			go stores.update(regions) // update stores in background, unusually region heartbeat is slower than store update.
+		case <-resolvedTSTicker.C:
+			wg := &sync.WaitGroup{}
+			for i := 1; i <= cfg.StoreCount; i++ {
+				id := uint64(i)
+				wg.Add(1)
+				go func(wg *sync.WaitGroup, id uint64) {
+					defer wg.Done()
+					cli := clis[id]
+					_, err := cli.ReportMinResolvedTS(ctx, &pdpb.ReportMinResolvedTsRequest{
+						Header:        header,
+						StoreId:       id,
+						MinResolvedTs: uint64(time.Now().Unix()),
+					})
+					if err != nil {
+						log.Error("send resolved TS error", zap.Uint64("store-id", id), zap.Error(err))
+						return
+					}
+				}(wg, id)
+			}
+			wg.Wait()
 		case <-ctx.Done():
 			log.Info("got signal to exit")
 			switch sig {
